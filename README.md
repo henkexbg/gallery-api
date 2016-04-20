@@ -32,3 +32,9 @@ gallery.groupDirAuth.properties - Points to the location of another properties f
 
 # Optional Configuration
 A recommendation would be to use SSL, either via a fronting web server such as HTTPD or by other means, but the setup of that is outside the scope of this webapp.
+
+# Known Issues
+Browser compatibility is most likely not great. Works in Chrome both on desktop and mobile. Know that Firefox has some issues, especially with fullscreen.
+Currently possible to uncheck video conversion mode.
+There is no lazy loading on either gallery or slideshow, works surprisingly well up to several hundred images in one directory though.
+Slideshow seems to load images in a slightly random order.
