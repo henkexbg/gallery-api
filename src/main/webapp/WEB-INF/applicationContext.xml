@@ -1,0 +1,66 @@
+<beans xmlns="http://www.springframework.org/schema/beans" xmlns:context="http://www.springframework.org/schema/context" xmlns:util="http://www.springframework.org/schema/util" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:p="http://www.springframework.org/schema/p"
+    xsi:schemaLocation="
+        http://www.springframework.org/schema/beans     
+        http://www.springframework.org/schema/beans/spring-beans-4.2.xsd
+        http://www.springframework.org/schema/context 
+        http://www.springframework.org/schema/context/spring-context-4.2.xsd
+        http://www.springframework.org/schema/util
+        http://www.springframework.org/schema/util/spring-util-4.2.xsd">
+
+    <context:property-placeholder location="classpath:gallery.properties" />
+    <context:component-scan base-package="bjerne.gallery.service" />
+
+    <bean id="galleryService" class="bjerne.gallery.service.impl.GalleryServiceImpl">
+        <property name="galleryAuthorizationService" ref="galleryAuthorizationService" />
+        <property name="imageResizeService" ref="imageResizeService" />
+        <property name="videoConversionService" ref="videoConversionService" />
+        <property name="resizeDir" value="${gallery.resizeDir}" />
+        <property name="maxImageWidth" value="${gallery.imageResizing.maxImageWidth}" />
+        <property name="maxImageHeight" value="${gallery.imageResizing.maxImageHeight}" />
+        <property name="allowedFileExtensions">
+            <list>
+                <value>jpeg</value>
+                <value>jpg</value>
+                <value>png</value>
+                <value>gif</value>
+                <value>mp4</value>
+            </list>
+        </property>
+    </bean>
+
+    <alias name="galleryAuthorizationServiceSS" alias="galleryAuthorizationService" />
+    <bean id="galleryAuthorizationServiceSS" class="bjerne.gallery.service.impl.GalleryAuthorizationServiceSSImpl" />
+
+    <alias name="imageResizeServiceNative" alias="imageResizeService" />
+    <bean id="imageResizeServiceNative" class="bjerne.gallery.service.impl.ImageResizeServiceImpl" />
+
+    <!-- The bean below can be used activated to use ImageMagick instead of the java-based version. Testing showed that IM is slower though... -->
+    <!-- <bean id="imageResizeServiceIM" class="bjerne.gallery.service.impl.ImageResizeServiceIMImpl"> -->
+    <!-- <property name="imageMagickPath" value="${gallery.imageMagickPath}" /> -->
+    <!-- </bean> -->
+
+    <bean id="galleryRootDirConfigJob" class="bjerne.gallery.service.impl.GalleryRootDirConfigJob">
+        <property name="galleryRootDirChangeListeners">
+            <list>
+                <ref bean="galleryAuthorizationService" />
+            </list>
+        </property>
+        <property name="configFile" value="${gallery.groupDirAuth.properties}" />
+    </bean>
+
+    <bean id="videoConversionService" class="bjerne.gallery.service.impl.VideoConversionServiceImpl">
+        <property name="conversionModes" ref="videoConversionModes" />
+        <property name="externalBinaryPath" value="${gallery.videoConversion.binary}" />
+    </bean>
+    
+    <util:map id="videoConversionModes">
+        <entry key="COMPACT" value="${gallery.videoConversion.mode.compact}" />            
+    </util:map>
+    
+    <bean id="videoBatchConversionJob" class="bjerne.gallery.service.impl.VideoBatchConversionJob">
+        <property name="galleryService" ref="galleryService" />
+        <property name="galleryAuthorizationService" ref="galleryAuthorizationService" />
+    </bean>
+    
+</beans>
