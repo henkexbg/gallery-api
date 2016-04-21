@@ -5,6 +5,10 @@ Responsive web application for displaying your images and videos wherever you ar
 To be able to easily make your own images and videos available without having to upload them to a 3rd-party. This webapp is up and running in a few minutes and can easily be deployed either to a home server or a virtual machine somewhere in some cloud. While it is possible to configure it in another way, this application is protected by default (with basic authentication). Different users can be set up who can access different media.
 Focus was also put make it easy to deploy even for not super-tech-savvy people (it remains to be seen whether this goal was reached!), by for instance not requiring a database.
 
+# Demo
+https://mixedbag.se/gallery
+Username: sample, password: samplepw
+
 # Prerequisites
 - Java 8
 - A servlet container such as Apache Tomcat. Has been successfully tested with version 8 and 9.
