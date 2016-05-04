@@ -16,7 +16,7 @@ Username: sample, password: samplepw
 
 # Build
 - Go to root directory of repo [REPO_ROOT].
-- Run mvn clean all.
+- Run mvn clean package
 - In [REPO_ROOT]/target/ you can now either take the war file or the directory named gallery-X.X.X-SNAPSHOT/.
 - The war-file is essentially just a zipped version of the directory.
 
