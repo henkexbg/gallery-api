@@ -105,7 +105,16 @@ public class GalleryController {
      * can contain media in the shape of {@link GalleryFileHolder} instances as
      * well as sub-directories.
      * 
+     * @param servletRequest
+     *            Servlet request
+     * @param model
+     *            Spring web model
+     * 
      * @return A {@link ListingContext} instance.
+     * @throws IOException
+     *             Sub-types of this exception are thrown for different
+     *             scenarios, and the {@link IOException} itself for generic
+     *             errors.
      */
     @RequestMapping(value = "/service/**", method = RequestMethod.GET)
     public @ResponseBody ListingContext getListing(HttpServletRequest servletRequest, Model model) throws IOException {
@@ -153,9 +162,20 @@ public class GalleryController {
     /**
      * Requests an image with the given {@link ImageFormat}.
      * 
+     * @param request
+     *            Spring request
+     * @param servletRequest
+     *            Servlet request
+     * @param imageFormatCode
+     *            Image format.
+     * 
      * @return The image as a stream with the appropriate response headers set
      *         or a not-modified response, (see
-     *         {@link #returnImage(WebRequest, File)}).
+     *         {@link #returnResource(WebRequest, GalleryFile)}).
+     * @throws IOException
+     *             Sub-types of this exception are thrown for different
+     *             scenarios, and the {@link IOException} itself for generic
+     *             errors.
      */
     @RequestMapping(value = "/image/{imageFormat}/**", method = RequestMethod.GET)
     public ResponseEntity<InputStreamResource> getImage(WebRequest request, HttpServletRequest servletRequest,
@@ -185,9 +205,22 @@ public class GalleryController {
      * Requests an image of a custom size. This method will return the image
      * only if {@link #allowCustomImageSizes} is set to true.
      * 
+     * @param request
+     *            Spring request
+     * @param servletRequest
+     *            Servlet request
+     * @param width
+     *            Width in pixels
+     * @param height
+     *            Height in pixels
+     * 
      * @return The image as a stream with the appropriate response headers set
      *         or a not-modified response, (see
-     *         {@link #returnImage(WebRequest, File)}).
+     *         {@link #returnResource(WebRequest, GalleryFile)}).
+     * @throws IOException
+     *             Sub-types of this exception are thrown for different
+     *             scenarios, and the {@link IOException} itself for generic
+     *             errors.
      */
     @RequestMapping(value = "/customImage/{width}/{height}/**", method = RequestMethod.GET)
     public ResponseEntity<InputStreamResource> getCustomImage(WebRequest request, HttpServletRequest servletRequest,
@@ -222,6 +255,25 @@ public class GalleryController {
         }
     }
 
+    /**
+     * Requests a video of a certain format.
+     * 
+     * @param request
+     *            Spring request
+     * @param servletRequest
+     *            Servlet request
+     * @param conversionFormat
+     *            Video format
+     * 
+     * @return The image as a stream with the appropriate response headers set
+     *         or a not-modified response, (see
+     *         {@link #returnResource(WebRequest, GalleryFile)}).
+     * 
+     * @throws IOException
+     *             Sub-types of this exception are thrown for different
+     *             scenarios, and the {@link IOException} itself for generic
+     *             errors.
+     */
     @RequestMapping(value = "/video/{conversionFormat}/**", method = RequestMethod.GET)
     public ResponseEntity<InputStreamResource> getVideo(WebRequest request, HttpServletRequest servletRequest,
             @PathVariable(value = "conversionFormat") String conversionFormat) throws IOException {

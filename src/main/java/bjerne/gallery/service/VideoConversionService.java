@@ -54,6 +54,7 @@ public interface VideoConversionService {
      *            The video mode. Has to be one of the values returned by
      *            {@link #getAvailableVideoModes()}.
      * @throws IOException
+     *             If video cannot be converted.
      */
     void convertVideo(File origVideo, File newVideo, String videoMode) throws IOException;
 
