@@ -81,8 +81,6 @@ public class GalleryController {
 
     private static final String DIR_LISTING_PREFIX = "/service/";
 
-    private String thumbnailImageFormatCode;
-
     private List<ImageFormat> imageFormats;
 
     private GalleryService galleryService;
@@ -96,10 +94,6 @@ public class GalleryController {
 
     public void setImageFormats(List<ImageFormat> imageFormats) {
         this.imageFormats = imageFormats;
-    }
-
-    public void setThumbnailImageFormatCode(String thumbnailImageFormatCode) {
-        this.thumbnailImageFormatCode = thumbnailImageFormatCode;
     }
 
     public void setAllowCustomImageSizes(boolean allowCustomImageSizes) {
@@ -120,6 +114,9 @@ public class GalleryController {
         String contextPath = servletRequest.getContextPath();
         try {
             ListingContext listingContext = new ListingContext();
+            listingContext.setAllowCustomImageSizes(allowCustomImageSizes);
+            listingContext.setImageFormats(imageFormats.stream().map(f -> f.getCode()).collect(Collectors.toList()));
+            listingContext.setVideoFormats(galleryService.getAvailableVideoModes());
             if (StringUtils.isBlank(path)) {
                 listingContext.setDirectories(generateUrlsFromDirectoryPaths(path, contextPath, galleryService.getRootDirectories()));
             } else {
@@ -140,7 +137,6 @@ public class GalleryController {
                 listingContext.setVideos(videoHolders);
                 listingContext.setDirectories(generateUrlsFromDirectoryPaths(path, contextPath, galleryService.getDirectories(path)));
             }
-            listingContext.setVideoFormats(galleryService.getAvailableVideoModes());
             return listingContext;
         } catch (NotAllowedException noe) {
             LOG.warn("Not allowing resource {}", path);
@@ -402,10 +398,10 @@ public class GalleryController {
             GalleryFileHolder oneGalleryFileHolder = new GalleryFileHolder();
             oneGalleryFileHolder.setFilename(oneGalleryFile.getActualFile().getName());
             if (GalleryFileType.IMAGE.equals(oneGalleryFile.getType())) {
-                oneGalleryFileHolder.setMediaPath(generateCustomImageUrlTemplate(contextPath, oneGalleryFile));
-                oneGalleryFileHolder.setThumbnailPath(generateDynamicImageUrl(contextPath, thumbnailImageFormatCode, oneGalleryFile));
+                oneGalleryFileHolder.setFreeSizePath(generateCustomImageUrlTemplate(contextPath, oneGalleryFile));
+                oneGalleryFileHolder.setFormatPath(generateDynamicImageUrl(contextPath, oneGalleryFile));
             } else {
-                oneGalleryFileHolder.setMediaPath(contextPath + "/video/{conversionFormat}/" + oneGalleryFile.getPublicPath());
+                oneGalleryFileHolder.setFormatPath(contextPath + "/video/{conversionFormat}/" + oneGalleryFile.getPublicPath());
             }
             oneGalleryFileHolder.setContentType(oneGalleryFile.getContentType());
             galleryFileHolders.add(oneGalleryFileHolder);
@@ -414,18 +410,16 @@ public class GalleryController {
     }
 
     /**
-     * Generates the URL for a certain image format.
+     * Generates the URL template for a certain image format.
      * 
      * @param contextPath
      *            Webapp context path.
-     * @param imageFormatCode
-     *            Image format code.
      * @param file
      *            Image.
      * @return The URL for the image at the given image format code.
      */
-    private String generateDynamicImageUrl(String contextPath, String imageFormatCode, GalleryFile file) {
-        return contextPath + "/image/" + imageFormatCode + "/" + file.getPublicPath();
+    private String generateDynamicImageUrl(String contextPath, GalleryFile file) {
+        return contextPath + "/image/{imageFormat}/" + file.getPublicPath();
     }
 
     /**

@@ -47,6 +47,10 @@ public class ListingContext {
     private List<GalleryFileHolder> videos;
 
     private List<String> videoFormats;
+    
+    private boolean allowCustomImageSizes;
+    
+    private List<String> imageFormats;
 
     public String getCurrentPathDisplay() {
         return currentPathDisplay;
@@ -96,4 +100,20 @@ public class ListingContext {
         this.videoFormats = videoFormats;
     }
 
+    public boolean isAllowCustomImageSizes() {
+        return allowCustomImageSizes;
+    }
+
+    public void setAllowCustomImageSizes(boolean allowCustomImageSizes) {
+        this.allowCustomImageSizes = allowCustomImageSizes;
+    }
+
+    public List<String> getImageFormats() {
+        return imageFormats;
+    }
+
+    public void setImageFormats(List<String> imageFormats) {
+        this.imageFormats = imageFormats;
+    }
+    
 }

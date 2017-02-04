@@ -30,20 +30,28 @@ package bjerne.gallery.controller.model;
  */
 public class GalleryFileHolder {
 
-    private String mediaPath;
-
-    private String thumbnailPath;
+    private String freeSizePath;
+    
+    private String formatPath;
 
     private String contentType;
 
     private String filename;
 
-    public String getMediaPath() {
-        return mediaPath;
+    public String getFreeSizePath() {
+        return freeSizePath;
     }
 
-    public void setMediaPath(String mediaPath) {
-        this.mediaPath = mediaPath;
+    public void setFreeSizePath(String freeSizePath) {
+        this.freeSizePath = freeSizePath;
+    }
+
+    public String getFormatPath() {
+        return formatPath;
+    }
+
+    public void setFormatPath(String formatPath) {
+        this.formatPath = formatPath;
     }
 
     public String getFilename() {
@@ -52,14 +60,6 @@ public class GalleryFileHolder {
 
     public void setFilename(String filename) {
         this.filename = filename;
-    }
-
-    public void setThumbnailPath(String thumbnailPath) {
-        this.thumbnailPath = thumbnailPath;
-    }
-
-    public String getThumbnailPath() {
-        return thumbnailPath;
     }
 
     public String getContentType() {

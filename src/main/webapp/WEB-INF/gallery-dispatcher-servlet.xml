@@ -16,7 +16,6 @@
 
     <bean id="galleryController" class="bjerne.gallery.controller.GalleryController">
         <property name="galleryService" ref="galleryService" />
-        <property name="thumbnailImageFormatCode" value="thumb" />
         <property name="imageFormats">
             <list>
                 <bean class="bjerne.gallery.controller.ImageFormat">

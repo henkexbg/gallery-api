@@ -3,9 +3,25 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>bjerne.gallery</groupId>
     <artifactId>gallery-api</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.0</version>
     <packaging>war</packaging>
     <name>Gallery API</name>
+    <description>REST Webapp for viewing a gallery of images and videos. Image rescaling as well as video transcoding is performed based on request parameters. No UI included. Purely API-based. Authentication via HTTP basic auth (per default). Supports different user roles.</description>
+
+    <developers>
+        <developer>
+            <name>Henrik Bjerne</name>
+            <url>https://github.com/henkexbg</url>
+        </developer>
+    </developers>
+
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>http://www.opensource.org/licenses/mit-license.php</url>
+        </license>
+    </licenses>
+
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring.version>4.3.0.RELEASE</spring.version>
@@ -108,5 +124,11 @@
             <version>1.4.0</version>
         </dependency>
     </dependencies>
+
+    <scm>
+        <connection>scm:git:https://github.com/henkexbg/gallery-api.git</connection>
+        <developerConnection>scm:git:https://github.com/henkexbg/gallery-api.git</developerConnection>
+        <url>https://github.com/henkexbg/gallery-api</url>
+    </scm>
 
 </project>
