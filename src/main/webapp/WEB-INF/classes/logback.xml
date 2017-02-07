@@ -13,8 +13,8 @@
         <file>${catalina.base}/logs/gallery.log</file>
     </appender>
 
-  <logger name="bjerne.gallery.controller" level="info" />
-  <logger name="bjerne.gallery.service" level="info"/>
+  <logger name="com.github.henkexbg.gallery.controller" level="info" />
+  <logger name="com.github.henkexbg.gallery.service" level="info"/>
 
   <root level="info">
     <appender-ref ref="STDOUT" />

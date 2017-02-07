@@ -9,9 +9,9 @@
         http://www.springframework.org/schema/util/spring-util-4.3.xsd">
 
     <context:property-placeholder location="classpath:gallery.properties" />
-    <context:component-scan base-package="bjerne.gallery.service" />
+    <context:component-scan base-package="com.github.henkexbg.gallery.service" />
 
-    <bean id="galleryService" class="bjerne.gallery.service.impl.GalleryServiceImpl">
+    <bean id="galleryService" class="com.github.henkexbg.gallery.service.impl.GalleryServiceImpl">
         <property name="galleryAuthorizationService" ref="galleryAuthorizationService" />
         <property name="imageResizeService" ref="imageResizeService" />
         <property name="videoConversionService" ref="videoConversionService" />
@@ -30,17 +30,17 @@
     </bean>
 
     <alias name="galleryAuthorizationServiceSS" alias="galleryAuthorizationService" />
-    <bean id="galleryAuthorizationServiceSS" class="bjerne.gallery.service.impl.GalleryAuthorizationServiceSSImpl" />
+    <bean id="galleryAuthorizationServiceSS" class="com.github.henkexbg.gallery.service.impl.GalleryAuthorizationServiceSSImpl" />
 
     <alias name="imageResizeServiceNative" alias="imageResizeService" />
-    <bean id="imageResizeServiceNative" class="bjerne.gallery.service.impl.ImageResizeServiceImpl" />
+    <bean id="imageResizeServiceNative" class="com.github.henkexbg.gallery.service.impl.ImageResizeServiceImpl" />
 
     <!-- The bean below can be used activated to use ImageMagick instead of the java-based version. Testing showed that IM is slower though... -->
-    <!-- <bean id="imageResizeServiceIM" class="bjerne.gallery.service.impl.ImageResizeServiceIMImpl"> -->
+    <!-- <bean id="imageResizeServiceIM" class="com.github.henkexbg.gallery.service.impl.ImageResizeServiceIMImpl"> -->
     <!-- <property name="imageMagickPath" value="${gallery.imageMagickPath}" /> -->
     <!-- </bean> -->
 
-    <bean id="galleryRootDirConfigJob" class="bjerne.gallery.service.impl.GalleryRootDirConfigJob">
+    <bean id="galleryRootDirConfigJob" class="com.github.henkexbg.gallery.service.impl.GalleryRootDirConfigJob">
         <property name="galleryRootDirChangeListeners">
             <list>
                 <ref bean="galleryAuthorizationService" />
@@ -49,7 +49,7 @@
         <property name="configFile" value="${gallery.groupDirAuth.properties}" />
     </bean>
 
-    <bean id="videoConversionService" class="bjerne.gallery.service.impl.VideoConversionServiceImpl">
+    <bean id="videoConversionService" class="com.github.henkexbg.gallery.service.impl.VideoConversionServiceImpl">
         <property name="conversionModes" ref="videoConversionModes" />
         <property name="externalBinaryPath" value="${gallery.videoConversion.binary}" />
     </bean>
@@ -58,7 +58,7 @@
         <entry key="COMPACT" value="${gallery.videoConversion.mode.compact}" />            
     </util:map>
     
-    <bean id="videoBatchConversionJob" class="bjerne.gallery.service.impl.VideoBatchConversionJob">
+    <bean id="videoBatchConversionJob" class="com.github.henkexbg.gallery.service.impl.VideoBatchConversionJob">
         <property name="galleryService" ref="galleryService" />
         <property name="galleryAuthorizationService" ref="galleryAuthorizationService" />
     </bean>

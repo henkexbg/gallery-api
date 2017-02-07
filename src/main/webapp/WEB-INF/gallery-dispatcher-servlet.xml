@@ -9,16 +9,16 @@
         http://www.springframework.org/schema/mvc/spring-mvc.xsd">
 
     <mvc:annotation-driven />
-    <context:component-scan base-package="bjerne.gallery.controller" />
+    <context:component-scan base-package="com.github.henkexbg.gallery.controller" />
 
     <mvc:resources mapping="/static/**" location="/static/" />
     <mvc:default-servlet-handler />
 
-    <bean id="galleryController" class="bjerne.gallery.controller.GalleryController">
+    <bean id="galleryController" class="com.github.henkexbg.gallery.controller.GalleryController">
         <property name="galleryService" ref="galleryService" />
         <property name="imageFormats">
             <list>
-                <bean class="bjerne.gallery.controller.ImageFormat">
+                <bean class="com.github.henkexbg.gallery.controller.ImageFormat">
                     <property name="code" value="thumb" />
                     <property name="width" value="300" />
                     <property name="height" value="300" />
