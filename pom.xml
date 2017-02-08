@@ -6,6 +6,7 @@
     <version>0.1.0</version>
     <packaging>war</packaging>
     <name>Gallery API</name>
+    <url>https://github.com/henkexbg/gallery-api</url>
     <description>REST Webapp for viewing a gallery of images and videos. Image rescaling as well as video transcoding is performed based on request parameters. No UI included. Purely API-based. Authentication via HTTP basic auth (per default). Supports different user roles.</description>
 
     <developers>
