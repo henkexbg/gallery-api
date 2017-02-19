@@ -1,6 +1,6 @@
 /**
  * Copyright (c) 2016 Henrik Bjerne
- * 
+ * <p>
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -9,7 +9,7 @@
  * furnished to do so, subject to the following conditions:The above copyright
  * notice and this permission notice shall be included in all copies or
  * substantial portions of the Software.
- * 
+ * <p>
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -17,7 +17,6 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- * 
  */
 package com.github.henkexbg.gallery.controller;
 
@@ -35,6 +34,7 @@ import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletRequest;
 
+import com.github.henkexbg.gallery.controller.model.ImageFormat;
 import org.apache.commons.io.input.BoundedInputStream;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -104,12 +104,12 @@ public class GalleryController {
      * Retrieves the listing for a given path (which can be empty). The response
      * can contain media in the shape of {@link GalleryFileHolder} instances as
      * well as sub-directories.
-     * 
+     *
      * @param servletRequest
      *            Servlet request
      * @param model
      *            Spring web model
-     * 
+     *
      * @return A {@link ListingContext} instance.
      * @throws IOException
      *             Sub-types of this exception are thrown for different
@@ -117,14 +117,16 @@ public class GalleryController {
      *             errors.
      */
     @RequestMapping(value = "/service/**", method = RequestMethod.GET)
-    public @ResponseBody ListingContext getListing(HttpServletRequest servletRequest, Model model) throws IOException {
+    public
+    @ResponseBody
+    ListingContext getListing(HttpServletRequest servletRequest, Model model) throws IOException {
         String path = extractPathFromPattern(servletRequest);
         LOG.debug("Entering getListing(path={})", path);
         String contextPath = servletRequest.getContextPath();
         try {
             ListingContext listingContext = new ListingContext();
             listingContext.setAllowCustomImageSizes(allowCustomImageSizes);
-            listingContext.setImageFormats(imageFormats.stream().map(f -> f.getCode()).collect(Collectors.toList()));
+            listingContext.setImageFormats(imageFormats);
             listingContext.setVideoFormats(galleryService.getAvailableVideoModes());
             if (StringUtils.isBlank(path)) {
                 listingContext.setDirectories(generateUrlsFromDirectoryPaths(path, contextPath, galleryService.getRootDirectories()));
@@ -135,7 +137,7 @@ public class GalleryController {
                 if (directoryListing == null) {
                     throw new ResourceNotFoundException();
                 }
-                LOG.debug(directoryListing.size() + " media files found");
+                LOG.debug("{} media files found", directoryListing.size());
                 List<GalleryFile> galleryImages = directoryListing.stream().filter(gi -> GalleryFileType.IMAGE.equals(gi.getType()))
                         .collect(Collectors.toList());
                 List<GalleryFileHolder> listing = convertToGalleryFileHolders(contextPath, galleryImages);
@@ -161,14 +163,14 @@ public class GalleryController {
 
     /**
      * Requests an image with the given {@link ImageFormat}.
-     * 
+     *
      * @param request
      *            Spring request
      * @param servletRequest
      *            Servlet request
      * @param imageFormatCode
      *            Image format.
-     * 
+     *
      * @return The image as a stream with the appropriate response headers set
      *         or a not-modified response, (see
      *         {@link #returnResource(WebRequest, GalleryFile)}).
@@ -179,7 +181,7 @@ public class GalleryController {
      */
     @RequestMapping(value = "/image/{imageFormat}/**", method = RequestMethod.GET)
     public ResponseEntity<InputStreamResource> getImage(WebRequest request, HttpServletRequest servletRequest,
-            @PathVariable(value = "imageFormat") String imageFormatCode) throws IOException {
+                                                        @PathVariable(value = "imageFormat") String imageFormatCode) throws IOException {
         String path = extractPathFromPattern(servletRequest);
         LOG.debug("getImage(imageFormatCode={}, path={})", imageFormatCode, path);
         try {
@@ -204,7 +206,7 @@ public class GalleryController {
     /**
      * Requests an image of a custom size. This method will return the image
      * only if {@link #allowCustomImageSizes} is set to true.
-     * 
+     *
      * @param request
      *            Spring request
      * @param servletRequest
@@ -213,7 +215,7 @@ public class GalleryController {
      *            Width in pixels
      * @param height
      *            Height in pixels
-     * 
+     *
      * @return The image as a stream with the appropriate response headers set
      *         or a not-modified response, (see
      *         {@link #returnResource(WebRequest, GalleryFile)}).
@@ -224,7 +226,7 @@ public class GalleryController {
      */
     @RequestMapping(value = "/customImage/{width}/{height}/**", method = RequestMethod.GET)
     public ResponseEntity<InputStreamResource> getCustomImage(WebRequest request, HttpServletRequest servletRequest,
-            @PathVariable(value = "width") String width, @PathVariable(value = "height") String height) throws IOException {
+                                                              @PathVariable(value = "width") String width, @PathVariable(value = "height") String height) throws IOException {
         if (!allowCustomImageSizes) {
             LOG.debug("Request for custom image was made despite allowCustomImageSizes being false.");
             throw new ResourceNotFoundException();
@@ -257,18 +259,18 @@ public class GalleryController {
 
     /**
      * Requests a video of a certain format.
-     * 
+     *
      * @param request
      *            Spring request
      * @param servletRequest
      *            Servlet request
      * @param conversionFormat
      *            Video format
-     * 
+     *
      * @return The image as a stream with the appropriate response headers set
      *         or a not-modified response, (see
      *         {@link #returnResource(WebRequest, GalleryFile)}).
-     * 
+     *
      * @throws IOException
      *             Sub-types of this exception are thrown for different
      *             scenarios, and the {@link IOException} itself for generic
@@ -276,7 +278,7 @@ public class GalleryController {
      */
     @RequestMapping(value = "/video/{conversionFormat}/**", method = RequestMethod.GET)
     public ResponseEntity<InputStreamResource> getVideo(WebRequest request, HttpServletRequest servletRequest,
-            @PathVariable(value = "conversionFormat") String conversionFormat) throws IOException {
+                                                        @PathVariable(value = "conversionFormat") String conversionFormat) throws IOException {
         String path = extractPathFromPattern(servletRequest);
         LOG.debug("getVideo(path={}, conversionFormat={})", path, conversionFormat);
         try {
@@ -308,7 +310,7 @@ public class GalleryController {
      * <p>
      * NOTE: the range logic should NOT be considered a complete implementation
      * - it's a bare minimum for making requests for byte ranges work.
-     * 
+     *
      * @param request
      *            Request
      * @param galleryFile
@@ -357,7 +359,7 @@ public class GalleryController {
 
     /**
      * Extracts the request range header if present.
-     * 
+     *
      * @param rangeHeader
      *            Range header.
      * @return a long[] which will always be the size 2. The first element is
@@ -391,7 +393,7 @@ public class GalleryController {
      * Previous in this case always means one step up in the hierarchy. It is
      * assumed that this is always a directory i.e. the URL will point to the
      * {@value #DIR_LISTING_PREFIX} service.
-     * 
+     *
      * @param contextPath
      *            Webapp context path.
      * @param path
@@ -414,7 +416,7 @@ public class GalleryController {
      * display name of the directory (just the directory name without the path).<br>
      * The value will be the public directory path (such as returned from the
      * {@link GalleryService}) prepended by the context path and service path.
-     * 
+     *
      * @param currentPath
      *            Webapp-specific path.
      * @param contextPath
@@ -437,7 +439,7 @@ public class GalleryController {
     /**
      * Converts the provided service layer {@link GalleryFile} objects to web
      * model {@link GalleryFileHolder} objects.
-     * 
+     *
      * @param contextPath
      *            Webapp context path.
      * @param galleryFiles
@@ -463,7 +465,7 @@ public class GalleryController {
 
     /**
      * Generates the URL template for a certain image format.
-     * 
+     *
      * @param contextPath
      *            Webapp context path.
      * @param file
@@ -476,7 +478,7 @@ public class GalleryController {
 
     /**
      * Generates the URL template for a certain image size.
-     * 
+     *
      * @param contextPath
      *            Webapp context path.
      * @param file
@@ -496,7 +498,7 @@ public class GalleryController {
      * method was put in place to correctly extract the path from the URL path
      * (remember, the URL path contains more information than just the image
      * path).
-     * 
+     *
      * @param request
      *            Request
      * @return The public image path.
@@ -511,7 +513,7 @@ public class GalleryController {
 
     /**
      * Retrieves the image format for the image format code.
-     * 
+     *
      * @param code
      *            Code.
      * @return The {@link ImageFormat}, or null.

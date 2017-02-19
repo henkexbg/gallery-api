@@ -11,6 +11,8 @@
     <mvc:annotation-driven />
     <context:component-scan base-package="com.github.henkexbg.gallery.controller" />
 
+    <context:property-placeholder location="classpath:gallery.properties" />
+
     <mvc:resources mapping="/static/**" location="/static/" />
     <mvc:default-servlet-handler />
 
@@ -18,14 +20,29 @@
         <property name="galleryService" ref="galleryService" />
         <property name="imageFormats">
             <list>
-                <bean class="com.github.henkexbg.gallery.controller.ImageFormat">
+                <bean class="com.github.henkexbg.gallery.controller.model.ImageFormat">
+                    <property name="code" value="uhd" />
+                    <property name="width" value="3840" />
+                    <property name="height" value="2160" />
+                </bean>
+                <bean class="com.github.henkexbg.gallery.controller.model.ImageFormat">
+                    <property name="code" value="qhd" />
+                    <property name="width" value="2560" />
+                    <property name="height" value="1440" />
+                </bean>
+                <bean class="com.github.henkexbg.gallery.controller.model.ImageFormat">
+                    <property name="code" value="fullhd" />
+                    <property name="width" value="1920" />
+                    <property name="height" value="1080" />
+                </bean>
+                <bean class="com.github.henkexbg.gallery.controller.model.ImageFormat">
                     <property name="code" value="thumb" />
                     <property name="width" value="300" />
                     <property name="height" value="300" />
                 </bean>
             </list>
         </property>
-        <property name="allowCustomImageSizes" value="true" />
+        <property name="allowCustomImageSizes" value="${gallery.allowCustomImageSizes}" />
     </bean>
 
 </beans>

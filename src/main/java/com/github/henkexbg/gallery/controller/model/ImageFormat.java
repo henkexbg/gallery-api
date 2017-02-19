@@ -19,7 +19,7 @@
  * SOFTWARE.
  * 
  */
-package com.github.henkexbg.gallery.controller;
+package com.github.henkexbg.gallery.controller.model;
 
 /**
  * Defines a certain image format that can be requested.<br>

@@ -52,6 +52,7 @@
     <bean id="videoConversionService" class="com.github.henkexbg.gallery.service.impl.VideoConversionServiceImpl">
         <property name="conversionModes" ref="videoConversionModes" />
         <property name="externalBinaryPath" value="${gallery.videoConversion.binary}" />
+        <property name="maxWaitTimeSeconds" value="${gallery.videoConversion.maxWaitTimeSeconds}" />
     </bean>
     
     <util:map id="videoConversionModes">

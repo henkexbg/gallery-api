@@ -50,7 +50,7 @@ public class ListingContext {
     
     private boolean allowCustomImageSizes;
     
-    private List<String> imageFormats;
+    private List<ImageFormat> imageFormats;
 
     public String getCurrentPathDisplay() {
         return currentPathDisplay;
@@ -108,11 +108,11 @@ public class ListingContext {
         this.allowCustomImageSizes = allowCustomImageSizes;
     }
 
-    public List<String> getImageFormats() {
+    public List<ImageFormat> getImageFormats() {
         return imageFormats;
     }
 
-    public void setImageFormats(List<String> imageFormats) {
+    public void setImageFormats(List<ImageFormat> imageFormats) {
         this.imageFormats = imageFormats;
     }
     
