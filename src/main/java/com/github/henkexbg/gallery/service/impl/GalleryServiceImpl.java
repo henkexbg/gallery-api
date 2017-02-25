@@ -1,6 +1,6 @@
 /**
  * Copyright (c) 2016 Henrik Bjerne
- * 
+ * <p>
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -9,7 +9,7 @@
  * furnished to do so, subject to the following conditions:The above copyright
  * notice and this permission notice shall be included in all copies or
  * substantial portions of the Software.
- * 
+ * <p>
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -17,7 +17,6 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- * 
  */
 package com.github.henkexbg.gallery.service.impl;
 
@@ -56,14 +55,13 @@ import com.github.henkexbg.gallery.service.bean.GalleryFile.GalleryFileType;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 
 /**
- * Implementation of the {@link GalleryService} interface. A log of services are
+ * Implementation of the {@link GalleryService} interface. A number of services are
  * tied together via this class, such as services for authorization, resizing
  * and conversion. In addition, this class defines a number of file formats it
  * will accept. Any other formats will be disregarded even if the files are
  * allowed in terms of location.
- * 
- * @author Henrik Bjerne
  *
+ * @author Henrik Bjerne
  */
 public class GalleryServiceImpl implements GalleryService {
 
@@ -140,7 +138,7 @@ public class GalleryServiceImpl implements GalleryService {
         if (isVideo(image)) {
             throw new IOException("Can only resize images!");
         }
-        File resizedImage = determineResizedImage(publicPath, width, height);
+        File resizedImage = determineResizedImage(image, width, height);
         LOG.debug("Resized filename: {}", resizedImage.getCanonicalPath());
         if (!resizedImage.exists()) {
             LOG.debug("Resized file did not exist.");
@@ -242,7 +240,7 @@ public class GalleryServiceImpl implements GalleryService {
             LOG.debug("Video mode was {}. Will return original video.", VIDEO_MODE_ORIGINAL);
             convertedVideo = video;
         } else {
-            convertedVideo = determineConvertedVideo(publicPath, videoMode);
+            convertedVideo = determineConvertedVideo(video, videoMode);
             LOG.debug("Converted video filename: {}", convertedVideo);
             if (!convertedVideo.exists()) {
                 LOG.debug("Resized file did not exist.");
@@ -299,7 +297,7 @@ public class GalleryServiceImpl implements GalleryService {
      * <strong>NOTE! This method does NOT verify that the current user actually
      * has the right to access the given rootPath! It is the responsibility of
      * calling methods to make sure only allowed root paths are used.</strong>
-     * 
+     *
      * @param rootPath
      * @param file
      * @return The public path of the given file for the given rootPath.
@@ -348,15 +346,27 @@ public class GalleryServiceImpl implements GalleryService {
         return StringUtils.startsWith(getContentType(file), "video");
     }
 
-    private File determineResizedImage(String path, int width, int height) {
+    private File determineResizedImage(File originalFile, int width, int height) throws IOException {
         String resizePart = Integer.valueOf(width).toString() + "x" + Integer.valueOf(height).toString();
-        File resizedImage = new File(resizeDir, File.separator + resizePart + File.separator + path);
+        File resizedImage = new File(resizeDir, File.separator + resizePart + File.separator + escapeFilePath(originalFile));
         return resizedImage;
     }
 
-    private File determineConvertedVideo(String path, String videoMode) {
-        File resizedImage = new File(resizeDir, File.separator + videoMode + File.separator + path);
-        return resizedImage;
+    private File determineConvertedVideo(File originalFile, String videoMode) throws IOException {
+        File convertedVideo = new File(resizeDir, File.separator + videoMode + File.separator + escapeFilePath(originalFile));
+        return convertedVideo;
+    }
+
+    /**
+     * Small util method helping with escaping any characters that would not be allowed in a path. The obvious use case here is Windows and
+     * it's drive letter followed by a ':'. Since the whole path will be appended to another root path that character is not allowed.
+     *
+     * @param file
+     * @return
+     * @throws IOException
+     */
+    private String escapeFilePath(File file) throws IOException {
+        return file.getCanonicalPath().replace(":", "_");
     }
 
     private void checkAllowed(File baseDir, File fileToCheck) throws IOException, NotAllowedException {
