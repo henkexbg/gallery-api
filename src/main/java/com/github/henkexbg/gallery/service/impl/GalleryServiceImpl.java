@@ -129,7 +129,7 @@ public class GalleryServiceImpl implements GalleryService {
     @Override
     public GalleryFile getImage(String publicPath, int width, int height) throws IOException, NotAllowedException {
         LOG.debug("Entering getImage(publicPath={}, width={}, height={}", publicPath, width, height);
-        if (width <= 0 && width > maxImageWidth || height <= 0 || height > maxImageHeight) {
+        if (width <= 0 || width > maxImageWidth || height <= 0 || height > maxImageHeight) {
             String errorMessage = String.format("Non valid image size requested. Width: %s, height: %s", width, height);
             LOG.error(errorMessage);
             throw new IOException(errorMessage);
