@@ -37,7 +37,7 @@ import org.springframework.beans.factory.annotation.Required;
 
 import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
 import com.github.henkexbg.gallery.service.GalleryService;
-import com.github.henkexbg.gallery.service.bean.GalleryFile;
+import com.github.henkexbg.gallery.bean.GalleryFile;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 
 /**

@@ -23,7 +23,7 @@ package com.github.henkexbg.gallery.service;
 
 import java.util.Collection;
 
-import com.github.henkexbg.gallery.service.bean.GalleryRootDir;
+import com.github.henkexbg.gallery.bean.GalleryRootDir;
 
 /**
  * Very simple interface defining a listener for when the root dirs are updated.

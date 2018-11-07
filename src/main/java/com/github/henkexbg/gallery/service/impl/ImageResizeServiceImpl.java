@@ -21,9 +21,9 @@
  */
 package com.github.henkexbg.gallery.service.impl;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
+import java.awt.*;
+import java.awt.geom.AffineTransform;
+import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -54,22 +54,15 @@ public class ImageResizeServiceImpl implements ImageResizeService {
 
     private final Logger LOG = LoggerFactory.getLogger(getClass());
 
-    private Color backgroundColor = new Color(0, 0, 0);
-
-    public void setBackgroundColor(Color backgroundColor) {
-        this.backgroundColor = backgroundColor;
-    }
-
     @Override
     public void resizeImage(File origImage, File newImage, int width, int height) throws IOException {
         LOG.debug("Entering resizeImage(origImage={}, width={}, height={})", origImage, width, height);
         long startTime = System.currentTimeMillis();
         InputStream is = new BufferedInputStream(new FileInputStream(origImage));
-        BufferedImage i = ImageIO.read(is);
+        BufferedImage originalImage = ImageIO.read(is);
         IOUtils.closeQuietly(is);
-        BufferedImage scaledImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        int origWidth = i.getWidth();
-        int origHeight = i.getHeight();
+        int origWidth = originalImage.getWidth();
+        int origHeight = originalImage.getHeight();
         LOG.debug("Original size of image - width: {}, height={}", origWidth, height);
         float widthFactor = ((float) origWidth) / ((float) width);
         float heightFactor = ((float) origHeight) / ((float) height);
@@ -82,14 +75,12 @@ public class ImageResizeServiceImpl implements ImageResizeService {
             newHeight = origHeight;
             newWidth = origWidth;
         }
+        BufferedImage scaledImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = scaledImage.createGraphics();
+        AffineTransform at = AffineTransform.getScaleInstance(((float) newWidth) / ((float) origWidth), ((float) newHeight) / ((float) origHeight));
+        //g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.drawRenderedImage(originalImage, at);
         LOG.debug("Size of scaled image will be: width={}, height={}", newWidth, newHeight);
-        int startX = Math.max((width - newWidth) / 2, 0);
-        int startY = Math.max((height - newHeight) / 2, 0);
-        Graphics2D scaledGraphics = scaledImage.createGraphics();
-        scaledGraphics.setColor(backgroundColor);
-        scaledGraphics.fillRect(0, 0, width, height);
-        scaledGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        scaledGraphics.drawImage(i, startX, startY, newWidth, newHeight, null);
         OutputStream resultImageOutputStream = new BufferedOutputStream(FileUtils.openOutputStream(newImage));
         String extension = FilenameUtils.getExtension(origImage.getName());
         ImageIO.write(scaledImage, extension, resultImageOutputStream);

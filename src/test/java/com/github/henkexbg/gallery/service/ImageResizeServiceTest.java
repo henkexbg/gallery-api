@@ -42,7 +42,7 @@ public class ImageResizeServiceTest {
 
     private String imageMagickPath = "C:/Program Files/ImageMagick-6.9.3-Q16";
     
-    private String[] allowedSuffixes = new String[] { "JPG" };
+    private String[] allowedSuffixes = new String[] { "jpg" };
 
     private File inputFilesDir = new File("C:/temp/testfiles");
     

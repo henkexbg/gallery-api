@@ -19,7 +19,7 @@
  * SOFTWARE.
  * 
  */
-package com.github.henkexbg.gallery.service.bean;
+package com.github.henkexbg.gallery.bean;
 
 import java.io.File;
 

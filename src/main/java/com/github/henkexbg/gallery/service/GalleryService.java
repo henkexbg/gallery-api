@@ -21,10 +21,12 @@
  */
 package com.github.henkexbg.gallery.service;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.List;
 
-import com.github.henkexbg.gallery.service.bean.GalleryFile;
+import com.github.henkexbg.gallery.bean.GalleryFile;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 
 /**
@@ -98,6 +100,8 @@ public interface GalleryService {
      */
     List<String> getRootDirectories();
 
+    //Collection<File> getAllDirectories() throws IOException, NotAllowedException;
+
     /**
      * Generic method retrieving a gallery file.
      * 
@@ -147,4 +151,11 @@ public interface GalleryService {
      */
     List<GalleryFile> getAllVideos() throws IOException, NotAllowedException;
 
+    File getRealFileOrDir(String publicPath) throws IOException, FileNotFoundException, NotAllowedException;
+
+    String getPublicPathFromRealFile(String publicRoot, File file) throws IOException, NotAllowedException;
+
+    String getPublicRootFromRealFile(File file) throws IOException, NotAllowedException;
+
+    GalleryFile createGalleryFile(String publicPath, File actualFile) throws IOException;
 }

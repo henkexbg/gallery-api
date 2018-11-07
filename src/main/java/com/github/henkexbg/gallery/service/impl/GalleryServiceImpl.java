@@ -27,15 +27,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.comparator.NameFileComparator;
@@ -50,8 +43,8 @@ import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
 import com.github.henkexbg.gallery.service.GalleryService;
 import com.github.henkexbg.gallery.service.ImageResizeService;
 import com.github.henkexbg.gallery.service.VideoConversionService;
-import com.github.henkexbg.gallery.service.bean.GalleryFile;
-import com.github.henkexbg.gallery.service.bean.GalleryFile.GalleryFileType;
+import com.github.henkexbg.gallery.bean.GalleryFile;
+import com.github.henkexbg.gallery.bean.GalleryFile.GalleryFileType;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 
 /**
@@ -81,7 +74,7 @@ public class GalleryServiceImpl implements GalleryService {
 
     private final Comparator<String> directoryNameComparator = new CaseInsensitiveComparator();
 
-    private final IOFileFilter fileFilter = new CaseInsensitveFileEndingFilter();
+    private final IOFileFilter fileFilter = new CaseInsensitiveFileEndingFilter();
 
     private int maxImageWidth = 5000;
 
@@ -211,6 +204,17 @@ public class GalleryServiceImpl implements GalleryService {
         return galleryFiles;
     }
 
+//    @Override
+//    public Collection<File> getAllDirectories() throws IOException, NotAllowedException {
+//        Map<String, File> rootPathsForCurrentUser = galleryAuthorizationService.getRootPathsForCurrentUser();
+//        Collection<File> allDirectories = new HashSet<>();
+//        for (Entry<String, File> oneEntry : rootPathsForCurrentUser.entrySet()) {
+//            allDirectories.addAll(listFilesAndDirs(oneEntry.getValue(), FileFilterUtils.falseFileFilter(), FileFilterUtils.directoryFileFilter()));
+//        }
+//        LOG.debug("Returning {} directories", allDirectories.size());
+//        return allDirectories;
+//    }
+
     @Override
     public GalleryFile getGalleryFile(String publicPath) throws IOException, NotAllowedException {
         LOG.debug("Entering getGalleryFile(publicPath={})", publicPath);
@@ -255,7 +259,8 @@ public class GalleryServiceImpl implements GalleryService {
         return createGalleryFile(publicPath, convertedVideo);
     }
 
-    private File getRealFileOrDir(String publicPath) throws IOException, FileNotFoundException, NotAllowedException {
+    @Override
+    public File getRealFileOrDir(String publicPath) throws IOException, FileNotFoundException, NotAllowedException {
         LOG.debug("Entering getRealFileOrDir(publicPath={})", publicPath);
         if (StringUtils.isBlank(publicPath)) {
             throw new FileNotFoundException("Could not extract code from empty path!");
@@ -295,28 +300,57 @@ public class GalleryServiceImpl implements GalleryService {
     /**
      * A kind of inverse lookup - finding the public path given the actual file.
      * <strong>NOTE! This method does NOT verify that the current user actually
-     * has the right to access the given rootPath! It is the responsibility of
+     * has the right to access the given publicRoot! It is the responsibility of
      * calling methods to make sure only allowed root paths are used.</strong>
      *
-     * @param rootPath
+     * @param publicRoot
      * @param file
-     * @return The public path of the given file for the given rootPath.
+     * @return The public path of the given file for the given publicRoot.
      * @throws IOException
      * @throws NotAllowedException
      */
-    private String getPublicPathFromRealFile(String rootPath, File file) throws IOException, NotAllowedException {
+    @Override
+    public String getPublicPathFromRealFile(String publicRoot, File file) throws IOException, NotAllowedException {
         String actualFilePath = file.getCanonicalPath();
-        File rootFile = galleryAuthorizationService.getRootPathsForCurrentUser().get(rootPath);
+        File rootFile = galleryAuthorizationService.getRootPathsForCurrentUser().get(publicRoot);
         String relativePath = actualFilePath.substring(rootFile.getCanonicalPath().length(), actualFilePath.length());
         StringBuilder builder = new StringBuilder();
-        builder.append(rootPath);
+        builder.append(publicRoot);
         builder.append(relativePath);
         String publicPath = separatorsToUnix(builder.toString());
         LOG.debug("Actual file: {}, generated public path: {}", file, publicPath);
         return publicPath;
     }
 
-    private GalleryFile createGalleryFile(String publicPath, File actualFile) throws IOException {
+
+    @Override
+    public String getPublicRootFromRealFile(File file) throws IOException, NotAllowedException {
+        Optional<Entry<String, File>> optRootEntry = galleryAuthorizationService.getRootPathsForCurrentUser().entrySet().stream().filter(e -> isFileParentOf(e.getValue(), file)).findAny();
+        if (!optRootEntry.isPresent()) {
+            String errorMessage = String.format("File %s was not part of any allowed root path!", file.getCanonicalPath());
+            LOG.error(errorMessage);
+            throw new IOException(errorMessage);
+        }
+        Entry<String, File> rootEntry = optRootEntry.get();
+        //String publicPath = file.getCanonicalPath().replaceFirst(rootEntry.getValue().getCanonicalPath(), rootEntry.getKey());
+        //LOG.debug("Actual file: {}, generated public path: {}", file, publicPath);
+        //return publicPath;
+        return rootEntry.getKey();
+    }
+
+    private boolean isFileParentOf(File possibleParent, File possibleChild) {
+        File parentOfChild = possibleChild;
+        do {
+            if (possibleParent.equals(parentOfChild)) {
+                return true;
+            }
+            parentOfChild = parentOfChild.getParentFile();
+        } while (parentOfChild != null);
+        return false;
+    }
+
+    @Override
+    public GalleryFile createGalleryFile(String publicPath, File actualFile) throws IOException {
         String contentType = getContentType(actualFile);
         GalleryFile galleryFile = new GalleryFile();
         galleryFile.setPublicPath(publicPath);
@@ -388,7 +422,7 @@ public class GalleryServiceImpl implements GalleryService {
         }
     }
 
-    private class CaseInsensitveFileEndingFilter implements IOFileFilter {
+    private class CaseInsensitiveFileEndingFilter implements IOFileFilter {
 
         @Override
         public boolean accept(File file) {

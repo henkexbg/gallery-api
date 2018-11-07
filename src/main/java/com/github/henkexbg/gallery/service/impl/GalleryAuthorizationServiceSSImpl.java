@@ -36,7 +36,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
 import com.github.henkexbg.gallery.service.GalleryRootDirChangeListener;
-import com.github.henkexbg.gallery.service.bean.GalleryRootDir;
+import com.github.henkexbg.gallery.bean.GalleryRootDir;
 
 /**
  * Implementation of the {@link GalleryAuthorizationService} using Spring

@@ -60,8 +60,8 @@ import com.github.henkexbg.gallery.controller.exception.ResourceNotFoundExceptio
 import com.github.henkexbg.gallery.controller.model.GalleryFileHolder;
 import com.github.henkexbg.gallery.controller.model.ListingContext;
 import com.github.henkexbg.gallery.service.GalleryService;
-import com.github.henkexbg.gallery.service.bean.GalleryFile;
-import com.github.henkexbg.gallery.service.bean.GalleryFile.GalleryFileType;
+import com.github.henkexbg.gallery.bean.GalleryFile;
+import com.github.henkexbg.gallery.bean.GalleryFile.GalleryFileType;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 
 /**

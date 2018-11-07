@@ -35,7 +35,7 @@
     <alias name="imageResizeServiceNative" alias="imageResizeService" />
     <bean id="imageResizeServiceNative" class="com.github.henkexbg.gallery.service.impl.ImageResizeServiceImpl" />
 
-    <!-- The bean below can be used activated to use ImageMagick instead of the java-based version. Testing showed that IM is slower though... -->
+    <!-- The bean below can be activated to use ImageMagick instead of the java-based version. Testing showed that IM is slower though... -->
     <!-- <bean id="imageResizeServiceIM" class="com.github.henkexbg.gallery.service.impl.ImageResizeServiceIMImpl"> -->
     <!-- <property name="imageMagickPath" value="${gallery.imageMagickPath}" /> -->
     <!-- </bean> -->

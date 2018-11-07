@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Required;
 
 import com.github.henkexbg.gallery.service.GalleryRootDirChangeListener;
-import com.github.henkexbg.gallery.service.bean.GalleryRootDir;
+import com.github.henkexbg.gallery.bean.GalleryRootDir;
 
 /**
  * Job rather than a service. It listens continuously to changes to the given

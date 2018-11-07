@@ -11,8 +11,7 @@ There was also a clear intent with separation of concern in excluding any UI fro
 There is a separate project that adds a UI on top of the REST webapp, see https://github.com/henkexbg/gallery.
 
 # Demo
-http://ec2-13-54-112-31.ap-southeast-2.compute.amazonaws.com:8080/gallery/service
-Username: sample, password: samplepw
+Demo not available at the moment. Please see examples of API use further down.
 
 # Prerequisites
 - Java 8
