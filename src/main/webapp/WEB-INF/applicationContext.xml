@@ -12,22 +12,22 @@
     <context:component-scan base-package="com.github.henkexbg.gallery.service" />
 
     <bean id="galleryService" class="com.github.henkexbg.gallery.service.impl.GalleryServiceImpl">
-        <property name="galleryAuthorizationService" ref="galleryAuthorizationService" />
-        <property name="imageResizeService" ref="imageResizeService" />
-        <property name="videoConversionService" ref="videoConversionService" />
-        <property name="resizeDir" value="${gallery.resizeDir}" />
-        <property name="maxImageWidth" value="${gallery.imageResizing.maxImageWidth}" />
-        <property name="maxImageHeight" value="${gallery.imageResizing.maxImageHeight}" />
-        <property name="allowedFileExtensions">
-            <list>
-                <value>jpeg</value>
-                <value>jpg</value>
-                <value>png</value>
-                <value>gif</value>
-                <value>mp4</value>
-            </list>
-        </property>
-    </bean>
+    <property name="galleryAuthorizationService" ref="galleryAuthorizationService" />
+    <property name="imageResizeService" ref="imageResizeService" />
+    <property name="videoConversionService" ref="videoConversionService" />
+    <property name="resizeDir" value="${gallery.resizeDir}" />
+    <property name="maxImageWidth" value="${gallery.imageResizing.maxImageWidth}" />
+    <property name="maxImageHeight" value="${gallery.imageResizing.maxImageHeight}" />
+    <property name="allowedFileExtensions">
+        <list>
+            <value>jpeg</value>
+            <value>jpg</value>
+            <value>png</value>
+            <value>gif</value>
+            <value>mp4</value>
+        </list>
+    </property>
+</bean>
 
     <alias name="galleryAuthorizationServiceSS" alias="galleryAuthorizationService" />
     <bean id="galleryAuthorizationServiceSS" class="com.github.henkexbg.gallery.service.impl.GalleryAuthorizationServiceSSImpl" />
@@ -62,6 +62,19 @@
     <bean id="videoBatchConversionJob" class="com.github.henkexbg.gallery.service.impl.VideoBatchConversionJob">
         <property name="galleryService" ref="galleryService" />
         <property name="galleryAuthorizationService" ref="galleryAuthorizationService" />
+    </bean>
+
+    <bean id="filenameToSearchTermsStrategy" class="com.github.henkexbg.gallery.strategy.impl.FilenameToSearchTermsStrategyImpl" />
+
+    <bean id="gallerySearchService" class="com.github.henkexbg.gallery.service.impl.GallerySearchServiceImpl">
+        <property name="galleryAuthorizationService" ref="galleryAuthorizationService" />
+        <property name="galleryService" ref="galleryService" />
+        <property name="filenameToSearchTermsStrategy" ref="filenameToSearchTermsStrategy" />
+        <property name="dbHost" value="${gallery.arangodb.host}" />
+        <property name="dbPort" value="${gallery.arangodb.port}" />
+        <property name="dbName" value="${gallery.arangodb.database}" />
+        <property name="dbUsername" value="${gallery.arangodb.username}" />
+        <property name="dbPassword" value="${gallery.arangodb.password}" />
     </bean>
     
 </beans>

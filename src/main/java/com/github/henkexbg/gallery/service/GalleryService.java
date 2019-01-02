@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import com.github.henkexbg.gallery.bean.GalleryFile;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
@@ -93,6 +94,8 @@ public interface GalleryService {
      */
     List<String> getDirectories(String publicPath) throws IOException, NotAllowedException;
 
+    Set<String> getAllowedFileExtensions();
+
     /**
      * Retrieves the root directories for the current user.
      * 
@@ -158,4 +161,6 @@ public interface GalleryService {
     String getPublicRootFromRealFile(File file) throws IOException, NotAllowedException;
 
     GalleryFile createGalleryFile(String publicPath, File actualFile) throws IOException;
+
+    boolean isAllowedExtension(File file);
 }

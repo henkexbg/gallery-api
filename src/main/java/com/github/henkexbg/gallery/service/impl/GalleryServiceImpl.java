@@ -104,6 +104,11 @@ public class GalleryServiceImpl implements GalleryService {
         this.allowedFileExtensions = allowedFileExtensions;
     }
 
+    @Override
+    public Set<String> getAllowedFileExtensions() {
+        return allowedFileExtensions;
+    }
+
     public void setMaxImageWidth(int maxImageWidth) {
         this.maxImageWidth = maxImageWidth;
     }
@@ -410,7 +415,8 @@ public class GalleryServiceImpl implements GalleryService {
         }
     }
 
-    private boolean isAllowedExtension(File file) {
+    @Override
+    public boolean isAllowedExtension(File file) {
         return allowedFileExtensions.contains(getExtension(file.getName()).toLowerCase());
     }
 

@@ -43,6 +43,7 @@
             </list>
         </property>
         <property name="allowCustomImageSizes" value="${gallery.allowCustomImageSizes}" />
+        <property name="gallerySearchService" ref="gallerySearchService" />
     </bean>
 
 </beans>

@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 import javax.servlet.http.HttpServletRequest;
 
 import com.github.henkexbg.gallery.controller.model.ImageFormat;
+import com.github.henkexbg.gallery.service.GallerySearchService;
 import org.apache.commons.io.input.BoundedInputStream;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -85,11 +86,18 @@ public class GalleryController {
 
     private GalleryService galleryService;
 
+    private GallerySearchService gallerySearchService;
+
     private boolean allowCustomImageSizes = false;
 
     @Required
     public void setGalleryService(GalleryService galleryService) {
         this.galleryService = galleryService;
+    }
+
+    @Required
+    public void setGallerySearchService(GallerySearchService gallerySearchService) {
+        this.gallerySearchService = gallerySearchService;
     }
 
     public void setImageFormats(List<ImageFormat> imageFormats) {
@@ -149,6 +157,29 @@ public class GalleryController {
                 listingContext.setDirectories(generateUrlsFromDirectoryPaths(path, contextPath, galleryService.getDirectories(path)));
             }
             return listingContext;
+        } catch (NotAllowedException noe) {
+            LOG.warn("Not allowing resource {}", path);
+            throw new ResourceNotFoundException();
+        } catch (FileNotFoundException fnfe) {
+            LOG.warn("Could not find resource {}", path);
+            throw new ResourceNotFoundException();
+        } catch (IOException ioe) {
+            LOG.error("Error when calling getImage", ioe);
+            throw ioe;
+        }
+    }
+
+    @RequestMapping(value = "/search/{searchTerm}/**", method = RequestMethod.GET)
+    public
+    @ResponseBody
+    List<GalleryFileHolder> search(WebRequest request, HttpServletRequest servletRequest,
+                          @PathVariable(value = "searchTerm") String searchTerm) throws IOException {
+        String path = extractPathFromPattern(servletRequest);
+        LOG.debug("Entering search(searchTerm={}, path={})", searchTerm, path);
+        String contextPath = servletRequest.getContextPath();
+        try {
+            List<GalleryFileHolder> galleryFileHolders = convertToGalleryFileHolders(contextPath, gallerySearchService.search(path, searchTerm));
+            return galleryFileHolders;
         } catch (NotAllowedException noe) {
             LOG.warn("Not allowing resource {}", path);
             throw new ResourceNotFoundException();
