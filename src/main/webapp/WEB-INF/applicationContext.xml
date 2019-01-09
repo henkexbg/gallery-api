@@ -53,6 +53,7 @@
         <property name="conversionModes" ref="videoConversionModes" />
         <property name="externalBinaryPath" value="${gallery.videoConversion.binary}" />
         <property name="maxWaitTimeSeconds" value="${gallery.videoConversion.maxWaitTimeSeconds}" />
+        <property name="imageCommandTemplate" value="${gallery.videoConversion.imageCommandTemplate}" />
     </bean>
     
     <util:map id="videoConversionModes">

@@ -60,6 +60,8 @@ public class GalleryServiceImpl implements GalleryService {
 
     public static final String VIDEO_MODE_ORIGINAL = "ORIGINAL";
 
+    public static final String VIDEO_IMAGE_FILE_ENDING = "jpg";
+
     private final Logger LOG = LoggerFactory.getLogger(getClass());
 
     private GalleryAuthorizationService galleryAuthorizationService;
@@ -127,20 +129,27 @@ public class GalleryServiceImpl implements GalleryService {
             LOG.error(errorMessage);
             throw new IOException(errorMessage);
         }
-        File image = getRealFileOrDir(publicPath);
-        if (isVideo(image)) {
-            throw new IOException("Can only resize images!");
+        File realFile = getRealFileOrDir(publicPath);
+        File resizedImage = null;
+        boolean isVideo = isVideo(realFile);
+        if (isVideo) {
+            resizedImage = determineResizedVideoImage(realFile, width, height);
+        } else {
+            resizedImage = determineResizedImage(realFile, width, height);
         }
-        File resizedImage = determineResizedImage(image, width, height);
         LOG.debug("Resized filename: {}", resizedImage.getCanonicalPath());
         if (!resizedImage.exists()) {
             LOG.debug("Resized file did not exist.");
-            if (!image.exists()) {
-                String errorMessage = String.format("Main image %s did not exist. Could not resize.", image.getCanonicalPath());
+            if (!realFile.exists()) {
+                String errorMessage = String.format("Main realFile %s did not exist. Could not resize.", realFile.getCanonicalPath());
                 LOG.error(errorMessage);
                 throw new FileNotFoundException(errorMessage);
             }
-            imageResizeService.resizeImage(image, resizedImage, width, height);
+            if (isVideo) {
+                videoConversionService.generateImageForVideo(realFile, resizedImage, width, height);
+            } else {
+                imageResizeService.resizeImage(realFile, resizedImage, width, height);
+            }
         }
         return createGalleryFile(publicPath, resizedImage);
     }
@@ -378,6 +387,11 @@ public class GalleryServiceImpl implements GalleryService {
 
     private boolean isVideo(File file) throws IOException {
         return StringUtils.startsWith(getContentType(file), "video");
+    }
+
+    private File determineResizedVideoImage(File originalFile, int width, int height) throws IOException {
+        File resizedImage = determineResizedImage(originalFile, width, height);
+        return new File(resizedImage.getCanonicalPath() + '.' + VIDEO_IMAGE_FILE_ENDING);
     }
 
     private File determineResizedImage(File originalFile, int width, int height) throws IOException {

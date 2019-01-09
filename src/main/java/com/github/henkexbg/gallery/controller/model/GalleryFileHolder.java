@@ -34,6 +34,8 @@ public class GalleryFileHolder {
     
     private String formatPath;
 
+    private String videoPath;
+
     private String contentType;
 
     private String filename;
@@ -52,6 +54,14 @@ public class GalleryFileHolder {
 
     public void setFormatPath(String formatPath) {
         this.formatPath = formatPath;
+    }
+
+    public String getVideoPath() {
+        return videoPath;
+    }
+
+    public void setVideoPath(String videoPath) {
+        this.videoPath = videoPath;
     }
 
     public String getFilename() {

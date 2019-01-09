@@ -451,11 +451,10 @@ public class GalleryController {
         for (GalleryFile oneGalleryFile : galleryFiles) {
             GalleryFileHolder oneGalleryFileHolder = new GalleryFileHolder();
             oneGalleryFileHolder.setFilename(oneGalleryFile.getActualFile().getName());
-            if (GalleryFileType.IMAGE.equals(oneGalleryFile.getType())) {
-                oneGalleryFileHolder.setFreeSizePath(generateCustomImageUrlTemplate(contextPath, oneGalleryFile));
-                oneGalleryFileHolder.setFormatPath(generateDynamicImageUrl(contextPath, oneGalleryFile));
-            } else {
-                oneGalleryFileHolder.setFormatPath(contextPath + "/video/{conversionFormat}/" + oneGalleryFile.getPublicPath());
+            oneGalleryFileHolder.setFreeSizePath(generateCustomImageUrlTemplate(contextPath, oneGalleryFile));
+            oneGalleryFileHolder.setFormatPath(generateDynamicImageUrl(contextPath, oneGalleryFile));
+            if (GalleryFileType.VIDEO.equals(oneGalleryFile.getType())) {
+                oneGalleryFileHolder.setVideoPath(contextPath + "/video/{conversionFormat}/" + oneGalleryFile.getPublicPath());
             }
             oneGalleryFileHolder.setContentType(oneGalleryFile.getContentType());
             galleryFileHolders.add(oneGalleryFileHolder);

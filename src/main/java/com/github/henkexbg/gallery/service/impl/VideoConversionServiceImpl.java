@@ -1,6 +1,6 @@
 /**
  * Copyright (c) 2016 Henrik Bjerne
- * 
+ * <p>
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -9,7 +9,7 @@
  * furnished to do so, subject to the following conditions:The above copyright
  * notice and this permission notice shall be included in all copies or
  * substantial portions of the Software.
- * 
+ * <p>
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -17,7 +17,6 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- * 
  */
 package com.github.henkexbg.gallery.service.impl;
 
@@ -50,7 +49,7 @@ import com.github.henkexbg.gallery.service.VideoConversionService;
  * successfully with both. A bit of effort has been made in order to allow a
  * nice exit if the exit occurs during a conversion to not leave any threads or
  * external processes hanging if possible.
- * 
+ *
  * @author Henrik Bjerne
  *
  */
@@ -66,16 +65,18 @@ public class VideoConversionServiceImpl implements VideoConversionService {
 
     private Set<Thread> activeThreads = new HashSet<>();
 
+    private String imageCommandTemplate;
+
     /**
      * This sets a map of conversion modes. The name will be the name of the
      * video mode, while the value will be a kind of command template. Two
      * things will be done to this command template:<br>
      * 1: three strings will be inserted, as per String.format<br>
      * 2: there will be a split on ',' on the string, assuming everything between two commas is an argument.<br>
-     * The strings that are added are: binary, input file (full path), output file (full path). 
+     * The strings that are added are: binary, input file (full path), output file (full path).
      * <br>
-     * EXAMPLE; The following command template works for avconv: %s,-i,%s,-strict,experimental,%s 
-     * 
+     * EXAMPLE; The following command template works for avconv: %s,-i,%s,-strict,experimental,%s
+     *
      * @param conversionModes A map of conversion modes.
      */
     @Required
@@ -91,6 +92,11 @@ public class VideoConversionServiceImpl implements VideoConversionService {
         this.externalBinaryPath = externalBinaryPath;
     }
 
+    @Required
+    public void setImageCommandTemplate(String imageCommandTemplate) {
+        this.imageCommandTemplate = imageCommandTemplate;
+    }
+
     @Override
     public Collection<String> getAvailableVideoModes() {
         Set<String> conversionModeNames = conversionModes != null ? new HashSet<>(conversionModes.keySet()) : Collections.emptySet();
@@ -100,44 +106,68 @@ public class VideoConversionServiceImpl implements VideoConversionService {
 
     @Override
     public void convertVideo(File origVideo, File newVideo, String conversionMode) throws IOException {
+        List<String> commandParams = generateCommandParamList(origVideo, newVideo, conversionMode);
+        executeCommand(newVideo, commandParams);
+    }
+
+    @Override
+    public void generateImageForVideo(File video, File image, int width, int height) throws IOException {
+        List<String> commandParams = generateCommandParamListForImageGeneration(video, image, width, height);
+        executeCommand(image, commandParams);
+    }
+
+    /**
+     * Executes a command. The actual command has already been configured and
+     * is passed via the processParams parameter. These will be passed to a
+     * @{@link ProcessBuilder} that takes care of the execution. This is not a
+     * generic method and it assumes that a file is to be generated to the
+     * given newFile parameter.
+     * @param newFile New file to be generated
+     * @param processParams List of process parameters.
+     * @throws IOException If new file cannot be processed.
+     */
+    private void executeCommand(File newFile, List<String> processParams) throws IOException {
         long startTime = System.currentTimeMillis();
-        if (newVideo.exists()) {
-            LOG.debug("{} already exists. Trying to delete.", newVideo);
-            newVideo.delete();
+        if (newFile.exists()) {
+            LOG.debug("{} already exists. Trying to delete.", newFile);
+            newFile.delete();
         }
-        if (!newVideo.getParentFile().exists()) {
-            boolean dirsCreated = newVideo.getParentFile().mkdirs();
+        if (!newFile.getParentFile().exists()) {
+            boolean dirsCreated = newFile.getParentFile().mkdirs();
             if (!dirsCreated) {
-                String errorMessage = String.format("Could not create all dirs for %s", newVideo);
+                String errorMessage = String.format("Could not create all dirs for %s", newFile);
                 LOG.error(errorMessage);
                 throw new IOException(errorMessage);
             }
         }
-        ProcessBuilder pb = new ProcessBuilder(generateCommandParamList(origVideo, newVideo, conversionMode));
+        ProcessBuilder pb = new ProcessBuilder(processParams);
         Process pr = null;
         Thread currentThread = Thread.currentThread();
         try {
             LOG.debug("Adding current thread: {}", currentThread);
             registerThread(currentThread);
             pr = pb.start();
+            pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+            pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
 
-            BufferedReader reader = new BufferedReader(new InputStreamReader(pr.getInputStream()));
-            while (reader.ready()) {
-                Thread.sleep(100);
-                LOG.info("One line: {}", reader.readLine());
-            }
             boolean waitResult = pr.waitFor(maxWaitTimeSeconds, TimeUnit.SECONDS);
             if (!waitResult) {
                 String errorMessage = String.format("Waiting for video conversion exceeded maximum threshold of %s seconds",
                         maxWaitTimeSeconds);
                 LOG.error(errorMessage);
-                cleanupFailure(pr, newVideo);
+                cleanupFailure(pr, newFile);
+                throw new IOException(errorMessage);
+            }
+            if (pr.exitValue() != 0) {
+                String errorMessage = String.format("Error when generating new file %s. Cleaning up.", newFile.getCanonicalPath());
+                LOG.error(errorMessage);
+                cleanupFailure(pr, newFile);
                 throw new IOException(errorMessage);
             }
             long duration = System.currentTimeMillis() - startTime;
-            LOG.debug("Time in milliseconds to resize {}: {}", newVideo.toString(), duration);
+            LOG.debug("Time in milliseconds to generate {}: {}", newFile.toString(), duration);
         } catch (InterruptedException ie) {
-            cleanupFailure(pr, newVideo);
+            cleanupFailure(pr, newFile);
             LOG.error("Was interrupted while waiting for conversion. Throwing IOException");
             throw new IOException(ie);
         } finally {
@@ -152,6 +182,14 @@ public class VideoConversionServiceImpl implements VideoConversionService {
             throw new IOException(errorMessage);
         }
         String command = String.format(commandTemplate, externalBinaryPath, origVideo.getCanonicalPath(), newVideo.getCanonicalPath());
+        String[] commandParams = command.split(",");
+        List<String> commandParamsList = Arrays.asList(commandParams);
+        LOG.debug("Command params: {}", commandParamsList);
+        return commandParamsList;
+    }
+
+    private List<String> generateCommandParamListForImageGeneration(File video, File newImage, int width, int height) throws IOException {
+        String command = String.format(imageCommandTemplate, externalBinaryPath, video.getCanonicalPath(), newImage.getCanonicalPath(), width, height);
         String[] commandParams = command.split(",");
         List<String> commandParamsList = Arrays.asList(commandParams);
         LOG.debug("Command params: {}", commandParamsList);
