@@ -67,6 +67,8 @@ public class VideoConversionServiceImpl implements VideoConversionService {
 
     private String imageCommandTemplate;
 
+    private String externalProcessErrorLogFile;
+
     /**
      * This sets a map of conversion modes. The name will be the name of the
      * video mode, while the value will be a kind of command template. Two
@@ -95,6 +97,10 @@ public class VideoConversionServiceImpl implements VideoConversionService {
     @Required
     public void setImageCommandTemplate(String imageCommandTemplate) {
         this.imageCommandTemplate = imageCommandTemplate;
+    }
+
+    public void setExternalProcessErrorLogFile(String externalProcessErrorLogFile) {
+        this.externalProcessErrorLogFile = externalProcessErrorLogFile;
     }
 
     @Override
@@ -146,9 +152,14 @@ public class VideoConversionServiceImpl implements VideoConversionService {
         try {
             LOG.debug("Adding current thread: {}", currentThread);
             registerThread(currentThread);
-            pr = pb.start();
-            pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+            if (StringUtils.isNotBlank(externalProcessErrorLogFile)) {
+                LOG.debug("Will log external process error output to {}", externalProcessErrorLogFile);
+                pb.redirectError(ProcessBuilder.Redirect.appendTo(new File("/opt/tomcat/logs/video-error.txt")));
+            } else {
+                pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+            }
             pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+            pr = pb.start();
 
             boolean waitResult = pr.waitFor(maxWaitTimeSeconds, TimeUnit.SECONDS);
             if (!waitResult) {
