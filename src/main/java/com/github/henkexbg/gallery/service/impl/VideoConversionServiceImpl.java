@@ -154,7 +154,7 @@ public class VideoConversionServiceImpl implements VideoConversionService {
             registerThread(currentThread);
             if (StringUtils.isNotBlank(externalProcessErrorLogFile)) {
                 LOG.debug("Will log external process error output to {}", externalProcessErrorLogFile);
-                pb.redirectError(ProcessBuilder.Redirect.appendTo(new File("/opt/tomcat/logs/video-error.txt")));
+                pb.redirectError(ProcessBuilder.Redirect.appendTo(new File(externalProcessErrorLogFile)));
             } else {
                 pb.redirectError(ProcessBuilder.Redirect.DISCARD);
             }
