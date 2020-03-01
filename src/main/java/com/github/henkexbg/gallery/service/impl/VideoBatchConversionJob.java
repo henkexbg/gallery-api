@@ -21,8 +21,12 @@
  */
 package com.github.henkexbg.gallery.service.impl;
 
+import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -31,6 +35,9 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
+import ch.qos.logback.core.util.FileUtil;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Required;
@@ -51,6 +58,8 @@ import com.github.henkexbg.gallery.service.exception.NotAllowedException;
  */
 public class VideoBatchConversionJob {
 
+    private static final String BLACK_LISTED_VIDEOS_FILE_ENCODING = "UTF-8";
+
     private final Logger LOG = LoggerFactory.getLogger(getClass());
 
     private GalleryService galleryService;
@@ -60,6 +69,8 @@ public class VideoBatchConversionJob {
     private int initialDelaySeconds = 10;
 
     private int waitPeriodSeconds = 120;
+
+    private String blacklistedVideosFile;
 
     private boolean running = false;
 
@@ -85,6 +96,10 @@ public class VideoBatchConversionJob {
         this.waitPeriodSeconds = waitPeriodSeconds;
     }
 
+    public void setBlacklistedVideosFile(String blacklistedVideosFile) {
+        this.blacklistedVideosFile = blacklistedVideosFile;
+    }
+
     @PostConstruct
     public void startBatchService() {
         executor = Executors.newScheduledThreadPool(1);
@@ -105,11 +120,19 @@ public class VideoBatchConversionJob {
         try {
             galleryAuthorizationService.loginAdminUser();
             List<GalleryFile> allVideos = galleryService.getAllVideos();
-            LOG.debug("Found {} videos for conversion", allVideos.size());
-            allVideos.forEach(v -> LOG.debug("one video: {}", v.getPublicPath()));
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Found {} videos for conversion", allVideos.size());
+                allVideos.forEach(v -> LOG.debug("One video: {}", v.getPublicPath()));
+            }
             Collection<String> videoConversionModes = galleryService.getAvailableVideoModes();
             LOG.debug("Found the following video conversion modes: {}", videoConversionModes);
+            Collection<String> blacklistedVideoPaths = getBlacklistedVideoPaths();
             for (GalleryFile oneGalleryFile : allVideos) {
+                String oneGalleryFileCanonicalPath = oneGalleryFile.getActualFile().getCanonicalPath();
+                if (blacklistedVideoPaths.contains(oneGalleryFileCanonicalPath)) {
+                    LOG.info("Ignoring blacklisted video {}", oneGalleryFileCanonicalPath);
+                    continue;
+                }
                 for (String oneConversionMode : videoConversionModes) {
                     if (abort) {
                         LOG.warn("Abort requested. Skipping remainder of conversions.");
@@ -123,6 +146,7 @@ public class VideoBatchConversionJob {
                     } catch (IOException | NotAllowedException e) {
                         LOG.error("Error while converting {} for format {}. Continuing with next video.", oneGalleryFile.getPublicPath(),
                                 oneConversionMode);
+                        addBlacklistedVideo(oneGalleryFileCanonicalPath);
                     }
                 }
             }
@@ -133,6 +157,28 @@ public class VideoBatchConversionJob {
         } finally {
             galleryAuthorizationService.logoutAdminUser();
             running = false;
+        }
+    }
+
+    private List<String> getBlacklistedVideoPaths() {
+                if (StringUtils.isNotBlank(blacklistedVideosFile)) {
+                    try {
+                        return FileUtils.readLines(new File(blacklistedVideosFile), BLACK_LISTED_VIDEOS_FILE_ENCODING);
+                    } catch (IOException ioe) {
+                        LOG.error("Error when retrieving list of blacklisted videos: {}. Returning empty list", ioe);
+                    }
+                }
+                return Collections.EMPTY_LIST;
+            }
+
+    private void addBlacklistedVideo(String videoPath) {
+        if (StringUtils.isNotBlank(blacklistedVideosFile)) {
+            try {
+                LOG.info("Blacklisting video {}, that failed during conversion", videoPath);
+                FileUtils.write(new File(blacklistedVideosFile), videoPath + System.lineSeparator(), BLACK_LISTED_VIDEOS_FILE_ENCODING, true);
+            } catch (IOException ioe) {
+                LOG.error("Error when adding {} as blacklisted video: {}. Skipping.", videoPath, ioe);
+            }
         }
     }
 
