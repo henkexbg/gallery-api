@@ -1,11 +1,44 @@
 # Gallery-API
-Headless REST application for serving images and videos. No UI is included - it's a pure REST interface allowing navigation of a file tree and accessing media files. The backend takes care of scaling images, either to fully custom sizes or predefined image formats. Videos are transcoded (with the help of external binaries), and can be retrieved in a streaming fashion via HTTP Range headers (utilized by HTML5 for instance when requesting videos)
+Headless REST application for serving images and videos. No UI is included - it's a pure REST interface allowing navigation of a file tree and accessing media files. The backend takes care of scaling images, either to fully custom sizes or predefined image formats. Videos are transcoded (with the help of external binaries), and can be retrieved in a streaming fashion via HTTP Range headers (utilized by HTML5 for instance when requesting videos).
 
 # Purpose
 To be able to easily make your own images and videos available without having to upload them to a 3rd-party. This webapp is up and running in a few minutes and can easily be deployed either to a home server or a virtual machine somewhere in some cloud. While it is possible to configure it in another way, this application is protected by default (with basic authentication). Different users can be set up who can access different media.
 Focus was also put make it easy to deploy even for not super-tech-savvy people (it remains to be seen whether this goal was reached!), by for instance not requiring a database, but querying the filesystem in realtime.
 
 There was also a clear intent with separation of concern in excluding any UI from this artifact - the services of this webapp can easily be consumed by any other application (see sample requests/responses below).
+
+# Detailed Functionality
+The application works by configuring:
+- Users, along with their passwords and roles
+- Directories that a certain role should have access to
+- For video transcoding, the external binary needs to be specified
+- Images are resized in Java code per default, and does not need an external binary. For those who wish, an implementation that uses ImageMagick also exists
+
+The directories and sub-directories will then be made available by directly accessing the URL for that directory.
+
+The exact configuration will be given below, along with JSON responses, but a high level example of the app functionality follows:
+
+Let's assume:
+- There is a directory called C:/some-base-dir/**image-dir**
+- There is an image in this directory called **best-image-ever.jpg**
+- A user is configured with role **COOL-IMAGES**
+- The mapping for that role is: **ROLE_COOL-IMAGES.Best=C:/some-base-dir/image-dir**
+
+The word Best here is the public path, i.e. the path through which the content of the directory can be accessed.
+The user will now see **Best** as a possible option in the JSON response when calling [HOST]/gallery/service. They can now call [HOST]/gallery/service/Best, and all images, videos and sub-directories will be listed in the response.
+
+All images will be listed with a **formatPath**, which links to each image. Part of the link is a placeholder called {imageFormat}. This can be replaced with any of the formats that is also part of the response. Standard configuration allows four formats:
+- uhd
+- qhd
+- fullhd
+- thumb
+
+As part of the response when requesting Best the image **best-image-ever.jpg** will have the formatPath: /gallery/image/{imageFormat}/Best/best-image-ever.jpg
+
+To retrieve the actual image, perform the replacement as mentioned above. For example, in order to get the fullhd version, the URL requested should be **/gallery/image/fullhd/Best/best-image-ever.jpg**
+
+All images that have been resized and videos that have been transcoded are stored under a resized directory.
+
 
 # Optional UI
 There is a separate project that adds a UI on top of the REST webapp, see https://github.com/henkexbg/gallery.
@@ -21,12 +54,12 @@ Demo not available at the moment. Please see examples of API use further down.
 # Maven Artifact ID
 - Group: com.github.henkexbg
 - Artifact ID: gallery-api
-- Latest release version: 0.4.0
+- Latest release version: 0.4.1
 
 # Download
 The whole WAR file can be downloaded from Maven Central. Latest version can be found here:
 
-https://search.maven.org/remotecontent?filepath=com/github/henkexbg/gallery-api/0.2.0/gallery-api-0.2.0.war
+https://search.maven.org/remotecontent?filepath=com/github/henkexbg/gallery-api/0.4.1/gallery-api-0.4.1.war
 
 # Build From Source
 - Go to root directory of repo [REPO_ROOT].
@@ -37,7 +70,7 @@ https://search.maven.org/remotecontent?filepath=com/github/henkexbg/gallery-api/
 # Configuration
 For convenience, the webapp root directory will be called [WEBAPP_HOME]
 
-Edit [WEBAPP_HOME]/WEB-INF/classes/gallery.properties
+Make a copy of [WEBAPP_HOME]/WEB-INF/classes/gallery.properties.sample and call it [WEBAPP_HOME]/WEB-INF/classes/gallery.properties.
 
 This file contains a number of properties relevant to a specific environment. Each property is described in the file but a short rundown of the essential ones follows here.
 

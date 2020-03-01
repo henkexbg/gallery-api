@@ -6,6 +6,7 @@ import com.github.henkexbg.gallery.service.GalleryService;
 import org.apache.commons.io.FileUtils;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -76,6 +77,7 @@ public class VideoBatchConversionJobTest {
     }
 
     @Test
+    @Ignore
     public void testGetGoodVideo() throws Exception {
         when(galleryService.getVideo(TEST_VIDEO_PUBLIC_PATH, videoModes.get(0))).thenReturn(testGalleryFile);
 
@@ -86,6 +88,7 @@ public class VideoBatchConversionJobTest {
     }
 
     @Test
+    @Ignore
     public void testGetBadVideo() throws Exception {
         when(galleryService.getVideo(TEST_VIDEO_PUBLIC_PATH, videoModes.get(0))).thenThrow(new IOException());
 
@@ -97,6 +100,7 @@ public class VideoBatchConversionJobTest {
     }
 
     @Test
+    @Ignore
     public void testBlacklistedVideoSkipped() throws Exception {
         List<String> blacklistedVideoPaths = new ArrayList<>();
         blacklistedVideoPaths.add(TEST_VIDEO.getCanonicalPath());

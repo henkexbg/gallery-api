@@ -1,5 +1,5 @@
 # This is where resized images and converted videos will be stored.
-gallery.resizeDir=C:/temp/resize
+gallery.resizeDir=C:/dev/gallery-test-data/resize
 
 # Defines whether user-defined images sizes should be allowed per request. If
 # false, only specific image formats are allowed.
@@ -9,33 +9,35 @@ gallery.allowCustomImageSizes=false
 # Format of property is spring, where file system needs to be prefixed by
 # 'file:' .
 # The format within this property file should be standard Spring Security
-# format. Key is the username, first part of the value is the password, then
-# comes a list of roles, and then an enabled flag, like this:
-# user1=user1-password,ROLE_USER,ROLE_USER1,ROLE_PUBLIC,enabled
+# format. Key is the username, first part of the value is the password, the
+# {noop} syntax is used by Spring Security to determine the cipher. In this
+# case it's cleartext in the file. Then comes a list of roles, and then an
+# enabled flag, like this:
+# user1={noop}user1-password,ROLE_USER,ROLE_USER1,ROLE_PUBLIC,enabled
 # public=public-password,ROLE_USER,ROLE_PUBLIC,enabled
-gallery.users.propertiesFile=file:C:/temp/gallery-users.properties
+gallery.users.propertiesFile=file:C:/dev/gallery-test-data/gallery-users.properties
 
 # This should point to the properties file that defines the authorization
 # mapping between user groups and directories.
 # NOTE: The file below is reloaded during runtime if any changes are made.
 # This means that directories can be changed on the fly as long as the role
-# already exists. 
+# already exists.
 # The format should be as per the following:
 # ROLE_USER1.main=C:/temp/directory1
 # ROLE_USER1.second=C:/temp/directory2
 # ROLE_PUBLIC.public=C:/temp/public
-gallery.groupDirAuth.properties=C:/temp/gallery-auth-mapping.properties
+gallery.groupDirAuth.properties=C:/dev/gallery-test-data/gallery-auth-dirs.properties
 
 # This should point to the binary used for video conversion, for instance
 # avconv or ffmpeg. Either just the name or the full path can be entered,
 # depending on the environment.
-gallery.videoConversion.binary=C:/temp/ffmpeg/bin/ffmpeg.exe
+gallery.videoConversion.binary=C:/Program Files/ffmpeg-20180202-caaa40d-win64-static/bin/ffmpeg.exe
 #gallery.videoConversion.binary=avconv
 
 # Template for the external execution of the compact video format
 # String 1 will be the executable.
 # String 2 will be the input file.
-# String 3 will be the output file. 
+# String 3 will be the output file.
 #This property has been tested successfully with ffmpeg
 gallery.videoConversion.mode.compact=%s,-v,quiet,-i,%s,%s
 #The below config has been tested successfully with avconv
@@ -57,8 +59,9 @@ gallery.videoConversion.maxWaitTimeSeconds=3600
 # from the external process to the file specified.
 gallery.videoConversion.externalProcessErrorLogFile=
 
-gallery.videoConversion.blacklistedVideosFile=C:/temp/gallery-black-listed-videos.txt
+gallery.videoConversion.blacklistedVideosFile=C:/dev/gallery-test-data/gallery-black-listed-videos.txt
 
+# Max pixel sizes of resized images The proportions will always be kept.
 gallery.imageResizing.maxImageWidth=5000
 gallery.imageResizing.maxImageHeight=5000
 
