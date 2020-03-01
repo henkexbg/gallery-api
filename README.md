@@ -21,7 +21,7 @@ Demo not available at the moment. Please see examples of API use further down.
 # Maven Artifact ID
 - Group: com.github.henkexbg
 - Artifact ID: gallery-api
-- Latest release version: 0.2.0
+- Latest release version: 0.4.0
 
 # Download
 The whole WAR file can be downloaded from Maven Central. Latest version can be found here:

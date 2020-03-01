@@ -213,17 +213,6 @@ public class GalleryServiceImpl implements GalleryService {
         return galleryFiles;
     }
 
-//    @Override
-//    public Collection<File> getAllDirectories() throws IOException, NotAllowedException {
-//        Map<String, File> rootPathsForCurrentUser = galleryAuthorizationService.getRootPathsForCurrentUser();
-//        Collection<File> allDirectories = new HashSet<>();
-//        for (Entry<String, File> oneEntry : rootPathsForCurrentUser.entrySet()) {
-//            allDirectories.addAll(listFilesAndDirs(oneEntry.getValue(), FileFilterUtils.falseFileFilter(), FileFilterUtils.directoryFileFilter()));
-//        }
-//        LOG.debug("Returning {} directories", allDirectories.size());
-//        return allDirectories;
-//    }
-
     @Override
     public GalleryFile getGalleryFile(String publicPath) throws IOException, NotAllowedException {
         LOG.debug("Entering getGalleryFile(publicPath={})", publicPath);
@@ -268,8 +257,16 @@ public class GalleryServiceImpl implements GalleryService {
         return createGalleryFile(publicPath, convertedVideo);
     }
 
-    @Override
-    public File getRealFileOrDir(String publicPath) throws IOException, FileNotFoundException, NotAllowedException {
+    /**
+     * Looks up the actual file based on the public path. This method also checks that the current user has right to
+     * access the file in question.
+     * @param publicPath Public path
+     * @return The corresponding file, if existing and user is allowed to access
+     * @throws IOException If any file operation fails
+     * @throws FileNotFoundException If file cannot be found
+     * @throws NotAllowedException If explicitly not allowed to access file
+     */
+    private File getRealFileOrDir(String publicPath) throws IOException, FileNotFoundException, NotAllowedException {
         LOG.debug("Entering getRealFileOrDir(publicPath={})", publicPath);
         if (StringUtils.isBlank(publicPath)) {
             throw new FileNotFoundException("Could not extract code from empty path!");
@@ -312,14 +309,13 @@ public class GalleryServiceImpl implements GalleryService {
      * has the right to access the given publicRoot! It is the responsibility of
      * calling methods to make sure only allowed root paths are used.</strong>
      *
-     * @param publicRoot
-     * @param file
+     * @param publicRoot Public root dir
+     * @param file Actual file
      * @return The public path of the given file for the given publicRoot.
      * @throws IOException
      * @throws NotAllowedException
      */
-    @Override
-    public String getPublicPathFromRealFile(String publicRoot, File file) throws IOException, NotAllowedException {
+    private String getPublicPathFromRealFile(String publicRoot, File file) throws IOException, NotAllowedException {
         String actualFilePath = file.getCanonicalPath();
         File rootFile = galleryAuthorizationService.getRootPathsForCurrentUser().get(publicRoot);
         String relativePath = actualFilePath.substring(rootFile.getCanonicalPath().length(), actualFilePath.length());
@@ -329,22 +325,6 @@ public class GalleryServiceImpl implements GalleryService {
         String publicPath = separatorsToUnix(builder.toString());
         LOG.debug("Actual file: {}, generated public path: {}", file, publicPath);
         return publicPath;
-    }
-
-
-    @Override
-    public String getPublicRootFromRealFile(File file) throws IOException, NotAllowedException {
-        Optional<Entry<String, File>> optRootEntry = galleryAuthorizationService.getRootPathsForCurrentUser().entrySet().stream().filter(e -> isFileParentOf(e.getValue(), file)).findAny();
-        if (!optRootEntry.isPresent()) {
-            String errorMessage = String.format("File %s was not part of any allowed root path!", file.getCanonicalPath());
-            LOG.error(errorMessage);
-            throw new IOException(errorMessage);
-        }
-        Entry<String, File> rootEntry = optRootEntry.get();
-        //String publicPath = file.getCanonicalPath().replaceFirst(rootEntry.getValue().getCanonicalPath(), rootEntry.getKey());
-        //LOG.debug("Actual file: {}, generated public path: {}", file, publicPath);
-        //return publicPath;
-        return rootEntry.getKey();
     }
 
     private boolean isFileParentOf(File possibleParent, File possibleChild) {
@@ -358,8 +338,7 @@ public class GalleryServiceImpl implements GalleryService {
         return false;
     }
 
-    @Override
-    public GalleryFile createGalleryFile(String publicPath, File actualFile) throws IOException {
+    private GalleryFile createGalleryFile(String publicPath, File actualFile) throws IOException {
         String contentType = getContentType(actualFile);
         GalleryFile galleryFile = new GalleryFile();
         galleryFile.setPublicPath(publicPath);

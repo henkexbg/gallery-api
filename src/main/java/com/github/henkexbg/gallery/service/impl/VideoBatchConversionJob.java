@@ -1,6 +1,6 @@
 /**
  * Copyright (c) 2016 Henrik Bjerne
- * 
+ * <p>
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -9,7 +9,7 @@
  * furnished to do so, subject to the following conditions:The above copyright
  * notice and this permission notice shall be included in all copies or
  * substantial portions of the Software.
- * 
+ * <p>
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -17,7 +17,6 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- * 
  */
 package com.github.henkexbg.gallery.service.impl;
 
@@ -52,7 +51,7 @@ import com.github.henkexbg.gallery.service.exception.NotAllowedException;
  * still too slow to convert videos in real-time (at least my computers!). This
  * job can then run at intervals, and convert the videos to all available video
  * modes, without having to wait for an end user request.
- * 
+ *
  * @author Henrik Bjerne
  *
  */
@@ -70,7 +69,7 @@ public class VideoBatchConversionJob {
 
     private int waitPeriodSeconds = 120;
 
-    private String blacklistedVideosFile;
+    private String blacklistedVideosFilePath;
 
     private boolean running = false;
 
@@ -96,8 +95,8 @@ public class VideoBatchConversionJob {
         this.waitPeriodSeconds = waitPeriodSeconds;
     }
 
-    public void setBlacklistedVideosFile(String blacklistedVideosFile) {
-        this.blacklistedVideosFile = blacklistedVideosFile;
+    public void setBlacklistedVideosFilePath(String blacklistedVideosFilePath) {
+        this.blacklistedVideosFilePath = blacklistedVideosFilePath;
     }
 
     @PostConstruct
@@ -161,21 +160,23 @@ public class VideoBatchConversionJob {
     }
 
     private List<String> getBlacklistedVideoPaths() {
-                if (StringUtils.isNotBlank(blacklistedVideosFile)) {
-                    try {
-                        return FileUtils.readLines(new File(blacklistedVideosFile), BLACK_LISTED_VIDEOS_FILE_ENCODING);
-                    } catch (IOException ioe) {
-                        LOG.error("Error when retrieving list of blacklisted videos: {}. Returning empty list", ioe);
-                    }
-                }
-                return Collections.EMPTY_LIST;
+        File blacklistedVideosFile = null;
+        if (StringUtils.isNotBlank(blacklistedVideosFilePath) && (blacklistedVideosFile = new File(blacklistedVideosFilePath)).exists()) {
+            try {
+                return FileUtils.readLines(blacklistedVideosFile, BLACK_LISTED_VIDEOS_FILE_ENCODING);
+            } catch (IOException ioe) {
+                LOG.error("Error when retrieving list of blacklisted videos: {}. Returning empty list", ioe);
             }
+        }
+        return Collections.EMPTY_LIST;
+    }
 
     private void addBlacklistedVideo(String videoPath) {
-        if (StringUtils.isNotBlank(blacklistedVideosFile)) {
+        if (StringUtils.isNotBlank(blacklistedVideosFilePath)) {
             try {
+                File blacklistedVideosFile =  new File(blacklistedVideosFilePath);
                 LOG.info("Blacklisting video {}, that failed during conversion", videoPath);
-                FileUtils.write(new File(blacklistedVideosFile), videoPath + System.lineSeparator(), BLACK_LISTED_VIDEOS_FILE_ENCODING, true);
+                FileUtils.write(blacklistedVideosFile, videoPath + System.lineSeparator(), BLACK_LISTED_VIDEOS_FILE_ENCODING, true);
             } catch (IOException ioe) {
                 LOG.error("Error when adding {} as blacklisted video: {}. Skipping.", videoPath, ioe);
             }

@@ -151,11 +151,4 @@ public interface GalleryService {
      */
     List<GalleryFile> getAllVideos() throws IOException, NotAllowedException;
 
-    File getRealFileOrDir(String publicPath) throws IOException, FileNotFoundException, NotAllowedException;
-
-    String getPublicPathFromRealFile(String publicRoot, File file) throws IOException, NotAllowedException;
-
-    String getPublicRootFromRealFile(File file) throws IOException, NotAllowedException;
-
-    GalleryFile createGalleryFile(String publicPath, File actualFile) throws IOException;
 }

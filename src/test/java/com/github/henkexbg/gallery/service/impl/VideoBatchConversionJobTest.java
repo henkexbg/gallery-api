@@ -52,7 +52,7 @@ public class VideoBatchConversionJobTest {
         MockitoAnnotations.initMocks(this);
 
         videoBatchConversionJob = new VideoBatchConversionJob();
-        videoBatchConversionJob.setBlacklistedVideosFile(BLACKLISTED_VIDEOS_PATH);
+        videoBatchConversionJob.setBlacklistedVideosFilePath(BLACKLISTED_VIDEOS_PATH);
         videoBatchConversionJob.setGalleryAuthorizationService(galleryAuthorizationService);
         videoBatchConversionJob.setGalleryService(galleryService);
 
