@@ -27,7 +27,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring.version>5.0.16.RELEASE</spring.version>
         <spring.security.version>5.0.14.RELEASE</spring.security.version>
-        <fasterxml.jackson.version>2.9.10</fasterxml.jackson.version>
+        <fasterxml.jackson.version>2.11.0</fasterxml.jackson.version>
     </properties>
 
     <build>
