@@ -23,6 +23,7 @@ package com.github.henkexbg.gallery.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Simple interface for resizing an image. This leaves some interpretation to
@@ -50,5 +51,22 @@ public interface ImageResizeService {
      *             If there is a problem accessing any of the files.
      */
     void resizeImage(File origImage, File newImage, int width, int height) throws IOException;
+
+    /**
+     * Generates a composite image out of several input images, for example an image representing a directory.
+     *
+     * @param origImages
+     *            Original images. Can be any number, but the implementation may just use a subset.
+     * @param newImage
+     *            Path of new image. This image should not exist. If it does, it
+     *            is ok for the implementation to remove the existing file.
+     * @param width
+     *            Width to rescale to.
+     * @param height
+     *            Height to rescale to.
+     * @throws IOException
+     *             If there is a problem accessing any of the files.
+     */
+    void generateCompositeImage(List<File> origImages, File newImage, int width, int height) throws IOException;
 
 }

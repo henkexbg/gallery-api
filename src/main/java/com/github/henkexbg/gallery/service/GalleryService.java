@@ -21,13 +21,12 @@
  */
 package com.github.henkexbg.gallery.service;
 
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.List;
 
 import com.github.henkexbg.gallery.bean.GalleryFile;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
+import com.github.henkexbg.gallery.bean.GalleryDirectory;
 
 /**
  * The core service providing the business logic for the application. The basic
@@ -91,16 +90,18 @@ public interface GalleryService {
      * @throws NotAllowedException
      *             If the requested path is not allowed.
      */
-    List<String> getDirectories(String publicPath) throws IOException, NotAllowedException;
+    List<GalleryDirectory> getDirectories(String publicPath) throws IOException, NotAllowedException;
 
     /**
      * Retrieves the root directories for the current user.
      * 
      * @return A list of root dir names.
+     * @throws IOException
+     *             If any issues retrieving the files.
+     * @throws NotAllowedException
+     *             If the requested path is not allowed.
      */
-    List<String> getRootDirectories();
-
-    //Collection<File> getAllDirectories() throws IOException, NotAllowedException;
+    List<GalleryDirectory> getRootDirectories() throws IOException, NotAllowedException;
 
     /**
      * Generic method retrieving a gallery file.

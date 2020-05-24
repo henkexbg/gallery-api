@@ -23,6 +23,7 @@ package com.github.henkexbg.gallery.service.impl;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
 import org.im4java.core.ConvertCmd;
@@ -79,6 +80,11 @@ public class ImageResizeServiceIMImpl implements ImageResizeService {
         }
         long duration = System.currentTimeMillis() - startTime;
         LOG.debug("Time in milliseconds to scale {}: {}", newImage.toString(), duration);
+    }
+
+    @Override
+    public void generateCompositeImage(List<File> origImages, File newImage, int width, int height) throws IOException {
+        resizeImage(origImages.get(0), newImage, width, height);
     }
 
 }

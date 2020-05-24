@@ -32,6 +32,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.List;
 
 import javax.imageio.ImageIO;
 
@@ -60,7 +61,7 @@ public class ImageResizeServiceImpl implements ImageResizeService {
         long startTime = System.currentTimeMillis();
         InputStream is = new BufferedInputStream(new FileInputStream(origImage));
         BufferedImage originalImage = ImageIO.read(is);
-        IOUtils.closeQuietly(is);
+        is.close();
         int origWidth = originalImage.getWidth();
         int origHeight = originalImage.getHeight();
         LOG.debug("Original size of image - width: {}, height={}", origWidth, height);
@@ -89,4 +90,9 @@ public class ImageResizeServiceImpl implements ImageResizeService {
         LOG.debug("Time in milliseconds to scale {}: {}", newImage.toString(), duration);
     }
 
+    @Override
+    public void generateCompositeImage(List<File> origImages, File newImage, int width, int height) throws IOException {
+        //TODO: Use multiple images to build directory image
+        resizeImage(origImages.get(0), newImage, width, height);
+    }
 }

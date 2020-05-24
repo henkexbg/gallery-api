@@ -40,7 +40,7 @@ public class ListingContext {
 
     private String previousPath;
 
-    private Map<String, String> directories;
+    private List<GalleryDirectoryHolder> directories;
 
     private List<GalleryFileHolder> images;
 
@@ -68,11 +68,11 @@ public class ListingContext {
         this.previousPath = previousPath;
     }
 
-    public Map<String, String> getDirectories() {
+    public List<GalleryDirectoryHolder> getDirectories() {
         return directories;
     }
 
-    public void setDirectories(Map<String, String> directories) {
+    public void setDirectories(List<GalleryDirectoryHolder> directories) {
         this.directories = directories;
     }
 

@@ -28,12 +28,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletRequest;
+
+import com.github.henkexbg.gallery.controller.model.GalleryDirectoryHolder;
 import com.github.henkexbg.gallery.controller.model.ImageFormat;
+import com.github.henkexbg.gallery.bean.GalleryDirectory;
 import org.apache.commons.io.input.BoundedInputStream;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -125,7 +126,7 @@ public class GalleryController {
             listingContext.setImageFormats(imageFormats);
             listingContext.setVideoFormats(galleryService.getAvailableVideoModes());
             if (StringUtils.isBlank(path)) {
-                listingContext.setDirectories(generateUrlsFromDirectoryPaths(path, contextPath, galleryService.getRootDirectories()));
+                listingContext.setDirectories(convertToGalleryDirectoryHolders(contextPath, galleryService.getRootDirectories()));
             } else {
                 listingContext.setCurrentPathDisplay(path);
                 listingContext.setPreviousPath(getPreviousPath(contextPath, path));
@@ -142,7 +143,7 @@ public class GalleryController {
                         .collect(Collectors.toList());
                 List<GalleryFileHolder> videoHolders = convertToGalleryFileHolders(contextPath, galleryVideos);
                 listingContext.setVideos(videoHolders);
-                listingContext.setDirectories(generateUrlsFromDirectoryPaths(path, contextPath, galleryService.getDirectories(path)));
+                listingContext.setDirectories(convertToGalleryDirectoryHolders(contextPath, galleryService.getDirectories(path)));
             }
             return listingContext;
         } catch (NotAllowedException noe) {
@@ -154,6 +155,9 @@ public class GalleryController {
         } catch (IOException ioe) {
             LOG.error("Error when calling getImage", ioe);
             throw ioe;
+        } catch (Exception e) {
+            LOG.error("Error when calling getListing", e);
+            throw e;
         }
     }
 
@@ -408,33 +412,7 @@ public class GalleryController {
     }
 
     /**
-     * Will return each directory as a map entry. The key will be a nicer
-     * display name of the directory (just the directory name without the path).<br>
-     * The value will be the public directory path (such as returned from the
-     * {@link GalleryService}) prepended by the context path and service path.
-     *
-     * @param currentPath
-     *            Webapp-specific path.
-     * @param contextPath
-     *            Webapp context path.
-     * @param directoryPaths
-     *            Directory paths.
-     * @return A Map where each key is a directory name for display, and each
-     *         value is the URL for that directory listing.
-     */
-    private Map<String, String> generateUrlsFromDirectoryPaths(String currentPath, String contextPath, List<String> directoryPaths) {
-        Map<String, String> urls = new TreeMap<>();
-        for (String oneDir : directoryPaths) {
-            String oneDirName = StringUtils.isNotBlank(currentPath) && StringUtils.startsWith(oneDir, currentPath) ? oneDir
-                    .substring(currentPath.length() + 1) : oneDir;
-            urls.put(oneDirName, contextPath + DIR_LISTING_PREFIX + oneDir);
-        }
-        return urls;
-    }
-
-    /**
-     * Converts the provided service layer {@link GalleryFile} objects to web
-     * model {@link GalleryFileHolder} objects.
+     * Converts a list of service layer {@link GalleryFile} objects to web model {@link GalleryFileHolder} objects.
      *
      * @param contextPath
      *            Webapp context path.
@@ -443,19 +421,55 @@ public class GalleryController {
      * @return A list of gallery files holders
      */
     private List<GalleryFileHolder> convertToGalleryFileHolders(String contextPath, List<GalleryFile> galleryFiles) {
-        List<GalleryFileHolder> galleryFileHolders = new ArrayList<>();
-        for (GalleryFile oneGalleryFile : galleryFiles) {
-            GalleryFileHolder oneGalleryFileHolder = new GalleryFileHolder();
-            oneGalleryFileHolder.setFilename(oneGalleryFile.getActualFile().getName());
-            oneGalleryFileHolder.setFreeSizePath(generateCustomImageUrlTemplate(contextPath, oneGalleryFile));
-            oneGalleryFileHolder.setFormatPath(generateDynamicImageUrl(contextPath, oneGalleryFile));
-            if (GalleryFileType.VIDEO.equals(oneGalleryFile.getType())) {
-                oneGalleryFileHolder.setVideoPath(contextPath + "/video/{conversionFormat}/" + oneGalleryFile.getPublicPath());
-            }
-            oneGalleryFileHolder.setContentType(oneGalleryFile.getContentType());
-            galleryFileHolders.add(oneGalleryFileHolder);
-        }
+        List<GalleryFileHolder> galleryFileHolders = new ArrayList<>(galleryFiles.size());
+        galleryFiles.forEach(gf -> galleryFileHolders.add(convertToGalleryFileHolder(contextPath, gf)));
         return galleryFileHolders;
+    }
+
+    /**
+     * Converts the provided service layer {@link GalleryFile} object to a web model {@link GalleryFileHolder} object.
+     * The public paths are appended to the appropriate services in question; a video for example is retrieved via a
+     * different URL than an image, and images are retrieved from different URLs depending on whether they are free size
+     * URLs or requested with a specific format.
+     *
+     * @param contextPath
+     *            Webapp context path.
+     * @param galleryFile
+     *            Gallery file.
+     * @return A gallery file holder
+     */
+    private GalleryFileHolder convertToGalleryFileHolder(String contextPath, GalleryFile galleryFile) {
+        GalleryFileHolder galleryFileHolder = new GalleryFileHolder();
+        galleryFileHolder.setFilename(galleryFile.getActualFile().getName());
+        galleryFileHolder.setFreeSizePath(generateCustomImageUrlTemplate(contextPath, galleryFile));
+        galleryFileHolder.setFormatPath(generateDynamicImageUrl(contextPath, galleryFile));
+        if (GalleryFileType.VIDEO.equals(galleryFile.getType())) {
+            galleryFileHolder.setVideoPath(contextPath + "/video/{conversionFormat}/" + galleryFile.getPublicPath());
+        }
+        galleryFileHolder.setContentType(galleryFile.getContentType());
+        return galleryFileHolder;
+    }
+
+    /**
+     * Converts a list of the provided service layer {@link GalleryDirectory} files for web models
+     * {@link GalleryDirectoryHolder} objects.
+     * @param contextPath Webapp context path.
+     * @param galleryDirectories List of service layer directories.
+     * @return A list of gallery directory holders
+     */
+    private List<GalleryDirectoryHolder> convertToGalleryDirectoryHolders(String contextPath, List<GalleryDirectory> galleryDirectories) {
+        List<GalleryDirectoryHolder> galleryDirectoryHolders = new ArrayList<>(galleryDirectories.size());
+        for (GalleryDirectory oneGalleryDirectory : galleryDirectories) {
+            GalleryDirectoryHolder oneGalleryDirectoryHolder = new GalleryDirectoryHolder();
+            String onePublicPath = oneGalleryDirectory.getPublicPath();
+            oneGalleryDirectoryHolder.setName(oneGalleryDirectory.getName());
+            oneGalleryDirectoryHolder.setPath(contextPath + DIR_LISTING_PREFIX + onePublicPath);
+            if (oneGalleryDirectory.getImage() != null) {
+                oneGalleryDirectoryHolder.setImage(convertToGalleryFileHolder(contextPath, oneGalleryDirectory.getImage()));
+            }
+            galleryDirectoryHolders.add(oneGalleryDirectoryHolder);
+        }
+        return galleryDirectoryHolders;
     }
 
     /**

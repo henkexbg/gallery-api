@@ -27,10 +27,12 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.text.Collator;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
+import com.github.henkexbg.gallery.bean.GalleryDirectory;
 import org.apache.commons.io.comparator.NameFileComparator;
 import org.apache.commons.io.filefilter.FileFilterUtils;
 import org.apache.commons.io.filefilter.IOFileFilter;
@@ -60,7 +62,9 @@ public class GalleryServiceImpl implements GalleryService {
 
     public static final String VIDEO_MODE_ORIGINAL = "ORIGINAL";
 
-    public static final String VIDEO_IMAGE_FILE_ENDING = "jpg";
+    public static final String DEFAULT_IMAGE_FILE_ENDING = "jpg";
+
+    public static final String DIR_IMAGE_PREFIX = "_directoryImage_";
 
     private final Logger LOG = LoggerFactory.getLogger(getClass());
 
@@ -74,13 +78,13 @@ public class GalleryServiceImpl implements GalleryService {
 
     private Set<String> allowedFileExtensions;
 
-    private final Comparator<String> directoryNameComparator = new CaseInsensitiveComparator();
-
     private final IOFileFilter fileFilter = new CaseInsensitiveFileEndingFilter();
 
     private int maxImageWidth = 5000;
 
     private int maxImageHeight = 5000;
+
+    private int directoryImageMaxAgeMinutes =  1440;
 
     @Required
     public void setGalleryAuthorizationService(GalleryAuthorizationService galleryAuthorizationService) {
@@ -114,11 +118,21 @@ public class GalleryServiceImpl implements GalleryService {
         this.maxImageHeight = maxImageHeight;
     }
 
+    public void setDirectoryImageMaxAgeMinutes(int directoryImageMaxAgeMinutes) {
+        this.directoryImageMaxAgeMinutes = directoryImageMaxAgeMinutes;
+    }
+
     @Override
-    public List<String> getRootDirectories() {
-        List<String> rootDirCodes = new ArrayList<String>(galleryAuthorizationService.getRootPathsForCurrentUser().keySet());
-        Collections.sort(rootDirCodes, directoryNameComparator);
-        return rootDirCodes;
+    public List<GalleryDirectory> getRootDirectories() throws IOException, NotAllowedException {
+        List<String> rootDirCodes =
+                new ArrayList<String>(galleryAuthorizationService.getRootPathsForCurrentUser().keySet());
+        List<GalleryDirectory> galleryDirectories = new ArrayList<>(rootDirCodes.size());
+        Collections.sort(rootDirCodes, String.CASE_INSENSITIVE_ORDER);
+        for (String oneRootDirCode : rootDirCodes) {
+            File oneRootDir = getRealFileOrDir(oneRootDirCode);
+            galleryDirectories.add(createGalleryDirectory(oneRootDirCode, oneRootDir));
+        }
+        return galleryDirectories;
     }
 
     @Override
@@ -130,6 +144,11 @@ public class GalleryServiceImpl implements GalleryService {
             throw new IOException(errorMessage);
         }
         File realFile = getRealFileOrDir(publicPath);
+        if (!realFile.isDirectory() && realFile.length() == 0) {
+            // Should never happen, but directory images can exist as empty files if there are no images in that
+            // directory. This is just an extra check that we don't even bother to resize that case
+            throw new FileNotFoundException();
+        }
         File resizedImage = null;
         boolean isVideo = isVideo(realFile);
         if (isVideo) {
@@ -141,7 +160,8 @@ public class GalleryServiceImpl implements GalleryService {
         if (!resizedImage.exists()) {
             LOG.debug("Resized file did not exist.");
             if (!realFile.exists()) {
-                String errorMessage = String.format("Main realFile %s did not exist. Could not resize.", realFile.getCanonicalPath());
+                String errorMessage =
+                        String.format("Main realFile %s did not exist. Could not resize.", realFile.getCanonicalPath());
                 LOG.error(errorMessage);
                 throw new FileNotFoundException(errorMessage);
             }
@@ -170,28 +190,23 @@ public class GalleryServiceImpl implements GalleryService {
         for (File oneFile : fileList) {
             galleryFiles.add(createGalleryFile(publicPath + '/' + oneFile.getName(), oneFile));
         }
-
         return galleryFiles;
     }
 
     @Override
-    public List<String> getDirectories(String publicPath) throws IOException, NotAllowedException {
+    public List<GalleryDirectory> getDirectories(String publicPath) throws IOException, NotAllowedException {
         File dir = getRealFileOrDir(publicPath);
-        List<String> directoryPaths = new ArrayList<>();
+        List<GalleryDirectory> galleryDirectories = new ArrayList<>();
         if (dir.isDirectory()) {
-            for (File oneFile : dir.listFiles()) {
-                if (oneFile.isDirectory()) {
-                    StringBuilder onePathBuilder = new StringBuilder();
-                    onePathBuilder.append(publicPath);
-                    onePathBuilder.append(File.separator);
-                    onePathBuilder.append(oneFile.getName());
-                    directoryPaths.add(separatorsToUnix(onePathBuilder.toString()));
-                }
+            List<File> directories = Arrays.asList(dir.listFiles(File::isDirectory));
+            LOG.debug("Found {} directories for path {}", directories.size(), publicPath);
+            Collections.sort(directories, NameFileComparator.NAME_INSENSITIVE_COMPARATOR);
+            for (File oneDir : directories) {
+                String oneDirPublicPath = buildPublicPathForFileInPublicDir(publicPath, oneDir);
+                galleryDirectories.add(createGalleryDirectory(oneDirPublicPath, oneDir));
             }
         }
-        LOG.debug("Found {} directories for path {}", directoryPaths.size(), publicPath);
-        Collections.sort(directoryPaths, directoryNameComparator);
-        return directoryPaths;
+        return galleryDirectories;
     }
 
     @Override
@@ -199,7 +214,8 @@ public class GalleryServiceImpl implements GalleryService {
         Map<String, File> rootPathsForCurrentUser = galleryAuthorizationService.getRootPathsForCurrentUser();
         Map<String, Collection<File>> rootPathVideos = new HashMap<>();
         for (Entry<String, File> oneEntry : rootPathsForCurrentUser.entrySet()) {
-            List<File> videosForRootPath = listFiles(oneEntry.getValue(), fileFilter, FileFilterUtils.directoryFileFilter()).stream()
+            List<File> videosForRootPath =
+                    listFiles(oneEntry.getValue(), fileFilter, FileFilterUtils.directoryFileFilter()).stream()
                     .filter(f -> isVideoNoException(f)).collect(Collectors.toList());
             rootPathVideos.put(oneEntry.getKey(), videosForRootPath);
         }
@@ -247,7 +263,8 @@ public class GalleryServiceImpl implements GalleryService {
             if (!convertedVideo.exists()) {
                 LOG.debug("Resized file did not exist.");
                 if (!video.exists()) {
-                    String errorMessage = String.format("Main video %s did not exist. Could not resize.", video.getCanonicalPath());
+                    String errorMessage =
+                            String.format("Main video %s did not exist. Could not resize.", video.getCanonicalPath());
                     LOG.error(errorMessage);
                     throw new FileNotFoundException(errorMessage);
                 }
@@ -255,6 +272,22 @@ public class GalleryServiceImpl implements GalleryService {
             }
         }
         return createGalleryFile(publicPath, convertedVideo);
+    }
+
+
+    /**
+     * Generates a public path for a file, given the public path of the directory the file resides in and the actual
+     * file.
+     * @param directoryPublicPath Public path of directory.
+     * @param fileInPublicDir Actual file.
+     * @return The public path for the given file
+     */
+    private String buildPublicPathForFileInPublicDir(String directoryPublicPath, File fileInPublicDir) {
+        StringBuilder pathBuilder = new StringBuilder();
+        pathBuilder.append(directoryPublicPath);
+        pathBuilder.append(File.separator);
+        pathBuilder.append(fileInPublicDir.getName());
+        return separatorsToUnix(pathBuilder.toString());
     }
 
     /**
@@ -288,7 +321,9 @@ public class GalleryServiceImpl implements GalleryService {
         LOG.debug("Relative path: {}", relativePath);
         if (StringUtils.isNotBlank(relativePath)) {
             file = new File(baseDir, relativePath);
-            checkAllowed(baseDir, file);
+            if (!galleryAuthorizationService.isAllowed(file)) {
+                throw new NotAllowedException("File " + file + " not allowed!");
+            }
         } else {
             // Don't need to check allowed on baseDir as this was just returned
             // from the authorization service.
@@ -327,17 +362,66 @@ public class GalleryServiceImpl implements GalleryService {
         return publicPath;
     }
 
-    private boolean isFileParentOf(File possibleParent, File possibleChild) {
-        File parentOfChild = possibleChild;
-        do {
-            if (possibleParent.equals(parentOfChild)) {
-                return true;
+    /**
+     * Creates a {@link GalleryDirectory} given the public path and the actual directory. Public path is required as
+     * multiple public paths can point to the same actual directory.
+     * @param publicPath Public path.
+     * @param actualDir Directory.
+     * @return A {@link GalleryDirectory} for the given parameters
+     * @throws IOException
+     */
+    private GalleryDirectory createGalleryDirectory(String publicPath, File actualDir) throws IOException {
+        GalleryDirectory galleryDirectory = new GalleryDirectory();
+        galleryDirectory.setPublicPath(publicPath);
+        galleryDirectory.setName(actualDir.getName());
+        File directoryImage = determineDirectoryImage(actualDir);
+        String directoryImagePublicPath = buildPublicPathForFileInPublicDir(publicPath, directoryImage);
+        if (!directoryImage.exists() ||
+                directoryImage.lastModified() < System.currentTimeMillis() - (directoryImageMaxAgeMinutes * 60000)) {
+            LOG.debug("Will generate new composite image for directory {}", directoryImage);
+            List<File> imagesForCompositeDirectoryImage = findImagesForCompositeDirectoryImage(actualDir);
+            if (!imagesForCompositeDirectoryImage.isEmpty()) {
+                imageResizeService.generateCompositeImage(
+                        imagesForCompositeDirectoryImage, directoryImage, maxImageWidth, maxImageHeight);
+                galleryDirectory.setImage(createGalleryFile(directoryImagePublicPath, directoryImage));
             }
-            parentOfChild = parentOfChild.getParentFile();
-        } while (parentOfChild != null);
-        return false;
+        } else {
+            galleryDirectory.setImage(createGalleryFile(directoryImagePublicPath, directoryImage));
+        }
+        return galleryDirectory;
     }
 
+    /**
+     * Searches through the given directory for images that can be used for a composite directory image.
+     * @param directory Directory
+     * @return A list with files pointing to images of approved file content types. May return empty list if none found
+     */
+    private List<File> findImagesForCompositeDirectoryImage(File directory) {
+        final int nrImages = 4;
+        List<File> foundFiles = listFiles(directory, fileFilter, null)
+                .stream().filter(f -> !isVideoNoException(f)).collect(Collectors.toList());
+        if (foundFiles.size() >= nrImages) {
+            return foundFiles;
+        }
+        File[] directories = directory.listFiles(File::isDirectory);
+        int i = 0;
+        while (i < directories.length && foundFiles.size() < nrImages) {
+            foundFiles.addAll(listFiles(directories[i], fileFilter, null)
+                    .stream().filter(f -> !isVideoNoException(f)).collect(Collectors.toList()));
+            i++;
+        }
+        return foundFiles.subList(0, Math.min(nrImages, foundFiles.size()));
+    }
+
+    /**
+     * Creates a {@link GalleryFile} for the given file. Public path is required as multiple public paths can point to
+     * the same actual file. This method should always be given a file with an approved image or video, and never a
+     * directory.
+     * @param publicPath Public path.
+     * @param actualFile File to convert to {@link GalleryFile}.
+     * @return A {@link GalleryFile} based on the given parameters
+     * @throws IOException
+     */
     private GalleryFile createGalleryFile(String publicPath, File actualFile) throws IOException {
         String contentType = getContentType(actualFile);
         GalleryFile galleryFile = new GalleryFile();
@@ -352,10 +436,22 @@ public class GalleryServiceImpl implements GalleryService {
         return galleryFile;
     }
 
+    /**
+     * Determines the content type for a given file. Will delegate to JVM/operating system.
+     * @param file File.
+     * @return Content type for given file.
+     * @throws IOException
+     */
     private String getContentType(File file) throws IOException {
         return Files.probeContentType(file.toPath());
     }
 
+    /**
+     * Simpler helper method that ignores the possible exception when checking whether a given file is a video. Will
+     * return false if an exception is caught.
+     * @param file File.
+     * @return True if video, false if not or exception was thrown.
+     */
     private boolean isVideoNoException(File file) {
         try {
             return isVideo(file);
@@ -364,29 +460,79 @@ public class GalleryServiceImpl implements GalleryService {
         }
     }
 
+    /**
+     * Simpler helper method that determines whether a file is a video.
+     * @param file File.
+     * @return True if video.
+     * @throws IOException
+     */
     private boolean isVideo(File file) throws IOException {
         return StringUtils.startsWith(getContentType(file), "video");
     }
 
-    private File determineResizedVideoImage(File originalFile, int width, int height) throws IOException {
-        File resizedImage = determineResizedImage(originalFile, width, height);
-        return new File(resizedImage.getCanonicalPath() + '.' + VIDEO_IMAGE_FILE_ENDING);
-    }
-
+    /**
+     * Generates the filename for a resized file and creates a file object (does not perform any file operation) given a
+     * file and its rescaling parameters.
+     * resize parameters.
+     * @param originalFile
+     * @param width
+     * @param height
+     * @return
+     * @throws IOException
+     */
     private File determineResizedImage(File originalFile, int width, int height) throws IOException {
         String resizePart = Integer.valueOf(width).toString() + "x" + Integer.valueOf(height).toString();
-        File resizedImage = new File(resizeDir, File.separator + resizePart + File.separator + escapeFilePath(originalFile));
+        File resizedImage = new File(resizeDir, File.separator + resizePart + File.separator +
+                escapeFilePath(originalFile) + (originalFile.isDirectory() ? '.' + DEFAULT_IMAGE_FILE_ENDING : ""));
         return resizedImage;
     }
 
+    /**
+     * Generates the filename for a resized image for a video and creates a file object (does not perform any file
+     * operation) given a video file and its rescaling parameters.
+     * resize parameters.
+     * @param originalFile Video.
+     * @param width Max width to scale image to.
+     * @param height Max height to scale image to.
+     * @return A {@link File} object for the scaled image.
+     * @throws IOException
+     */
+    private File determineResizedVideoImage(File originalFile, int width, int height) throws IOException {
+        File resizedImage = determineResizedImage(originalFile, width, height);
+        return new File(resizedImage.getCanonicalPath() + '.' + DEFAULT_IMAGE_FILE_ENDING);
+    }
+
+    /**
+     * Generates the filename for a converted video and creates a file object (does not perform any file operation)
+     * given an original video file and its rescaling parameters.
+     * @param originalFile Video.
+     * @param videoMode Video mode as per {@link #getAvailableVideoModes()}.
+     * @return A {@link File} object for the converted video
+     * @throws IOException
+     */
     private File determineConvertedVideo(File originalFile, String videoMode) throws IOException {
-        File convertedVideo = new File(resizeDir, File.separator + videoMode + File.separator + escapeFilePath(originalFile));
+        File convertedVideo = new File(
+                resizeDir, File.separator + videoMode + File.separator + escapeFilePath(originalFile));
         return convertedVideo;
     }
 
     /**
-     * Small util method helping with escaping any characters that would not be allowed in a path. The obvious use case here is Windows and
-     * it's drive letter followed by a ':'. Since the whole path will be appended to another root path that character is not allowed.
+     * Determines the file (or essentially filename) of an image dedicated for a directory.
+     * @param directory Directory
+     * @return A file pointing to the directory image.
+     * @throws IOException
+     */
+    private File determineDirectoryImage(File directory) throws IOException {
+        String filename =
+                DIR_IMAGE_PREFIX + directory.getName() + '.' + DEFAULT_IMAGE_FILE_ENDING;
+        File dirImage = new File(directory, filename);
+        return dirImage;
+    }
+
+    /**
+     * Small util method helping with escaping any characters that would not be allowed in a path. The obvious use case
+     * here is Windows and it's drive letter followed by a ':'. Since the whole path will be appended to another root
+     * path that character is not allowed.
      *
      * @param file
      * @return
@@ -396,30 +542,25 @@ public class GalleryServiceImpl implements GalleryService {
         return file.getCanonicalPath().replace(":", "_");
     }
 
-    private void checkAllowed(File baseDir, File fileToCheck) throws IOException, NotAllowedException {
-        boolean allowed = galleryAuthorizationService.isAllowed(fileToCheck);
-        if (!allowed) {
-            throw new NotAllowedException("File " + fileToCheck + " not allowed!");
-        }
-    }
-
+    /**
+     * Checks whether file has an allowed file extension. Checked towards {@link #allowedFileExtensions} in a case
+     * insensitive way.
+     * @param file File
+     * @return True if allowed
+     */
     private boolean isAllowedExtension(File file) {
         return allowedFileExtensions.contains(getExtension(file.getName()).toLowerCase());
     }
 
-    private class CaseInsensitiveComparator implements Comparator<String> {
-
-        @Override
-        public int compare(String o1, String o2) {
-            return o1.toLowerCase().compareTo(o2.toLowerCase());
-        }
-    }
-
+    /**
+     * Filters allowed files based on file ending. Special case as well for directory images that are generated by this
+     * class, that should not be part of normal file listing.
+     */
     private class CaseInsensitiveFileEndingFilter implements IOFileFilter {
 
         @Override
         public boolean accept(File file) {
-            return isAllowedExtension(file);
+            return isAllowedExtension(file) && !file.getName().startsWith(DIR_IMAGE_PREFIX);
         }
 
         @Override
