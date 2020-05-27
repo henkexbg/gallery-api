@@ -49,6 +49,8 @@ import com.github.henkexbg.gallery.bean.GalleryFile;
 import com.github.henkexbg.gallery.bean.GalleryFile.GalleryFileType;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 
+import javax.annotation.PostConstruct;
+
 /**
  * Implementation of the {@link GalleryService} interface. A number of services are
  * tied together via this class, such as services for authorization, resizing
@@ -64,7 +66,7 @@ public class GalleryServiceImpl implements GalleryService {
 
     public static final String DEFAULT_IMAGE_FILE_ENDING = "jpg";
 
-    public static final String DIR_IMAGE_PREFIX = "_directoryImage_";
+    public static final String DIR_IMAGE_DIR_NAME = "_directoryImages_";
 
     private final Logger LOG = LoggerFactory.getLogger(getClass());
 
@@ -85,6 +87,16 @@ public class GalleryServiceImpl implements GalleryService {
     private int maxImageHeight = 5000;
 
     private int directoryImageMaxAgeMinutes =  1440;
+
+    private File dirImageDir;
+
+    @PostConstruct
+    public void setUp() {
+        dirImageDir = new File(resizeDir, DIR_IMAGE_DIR_NAME);
+        if (!dirImageDir.exists()) {
+            dirImageDir.mkdir();
+        }
+    }
 
     @Required
     public void setGalleryAuthorizationService(GalleryAuthorizationService galleryAuthorizationService) {
@@ -144,10 +156,13 @@ public class GalleryServiceImpl implements GalleryService {
             throw new IOException(errorMessage);
         }
         File realFile = getRealFileOrDir(publicPath);
-        if (!realFile.isDirectory() && realFile.length() == 0) {
-            // Should never happen, but directory images can exist as empty files if there are no images in that
-            // directory. This is just an extra check that we don't even bother to resize that case
-            throw new FileNotFoundException();
+        if (realFile.isDirectory()) {
+            realFile = getDirectoryImage(realFile);
+            if (realFile == null) {
+                // Should never happen, but directory images can exist as empty files if there are no images in that
+                // directory. This is just an extra check that we don't even bother to resize that case
+                throw new FileNotFoundException();
+            }
         }
         File resizedImage = null;
         boolean isVideo = isVideo(realFile);
@@ -374,21 +389,40 @@ public class GalleryServiceImpl implements GalleryService {
         GalleryDirectory galleryDirectory = new GalleryDirectory();
         galleryDirectory.setPublicPath(publicPath);
         galleryDirectory.setName(actualDir.getName());
-        File directoryImage = determineDirectoryImage(actualDir);
-        String directoryImagePublicPath = buildPublicPathForFileInPublicDir(publicPath, directoryImage);
+        File directoryImage = getDirectoryImage(actualDir);
+        if (directoryImage != null) {
+            // Use the public path of the directory, and combine it with the image
+            galleryDirectory.setImage(createGalleryFile(publicPath, directoryImage));
+        }
+        return galleryDirectory;
+    }
+
+    /**
+     * Retrieves the image for a directory. If necessary the image will be generated first.
+     * @param directory Directory
+     * @return The generated image, or null if no image could be generated, for example because there are no images in
+     * the directory.
+     * @throws IOException
+     */
+    private File getDirectoryImage(File directory) throws IOException {
+        File directoryImage = determineDirectoryImage(directory);
         if (!directoryImage.exists() ||
                 directoryImage.lastModified() < System.currentTimeMillis() - (directoryImageMaxAgeMinutes * 60000)) {
             LOG.debug("Will generate new composite image for directory {}", directoryImage);
-            List<File> imagesForCompositeDirectoryImage = findImagesForCompositeDirectoryImage(actualDir);
+            List<File> imagesForCompositeDirectoryImage = findImagesForCompositeDirectoryImage(directory);
             if (!imagesForCompositeDirectoryImage.isEmpty()) {
                 imageResizeService.generateCompositeImage(
                         imagesForCompositeDirectoryImage, directoryImage, maxImageWidth, maxImageHeight);
-                galleryDirectory.setImage(createGalleryFile(directoryImagePublicPath, directoryImage));
+            } else {
+                // Create empty file so that we can check the timestamp towards it and not always try to generate a new
+                // file for directories without images.
+                directoryImage.createNewFile();
             }
-        } else {
-            galleryDirectory.setImage(createGalleryFile(directoryImagePublicPath, directoryImage));
         }
-        return galleryDirectory;
+        if (directoryImage == null || !directoryImage.exists() || directoryImage.length() == 0) {
+            return null;
+        }
+        return directoryImage;
     }
 
     /**
@@ -524,8 +558,8 @@ public class GalleryServiceImpl implements GalleryService {
      */
     private File determineDirectoryImage(File directory) throws IOException {
         String filename =
-                DIR_IMAGE_PREFIX + directory.getName() + '.' + DEFAULT_IMAGE_FILE_ENDING;
-        File dirImage = new File(directory, filename);
+                directory.getName() + '-' + directory.getCanonicalPath().hashCode() + '.' + DEFAULT_IMAGE_FILE_ENDING;
+        File dirImage = new File(dirImageDir, filename);
         return dirImage;
     }
 
@@ -560,7 +594,7 @@ public class GalleryServiceImpl implements GalleryService {
 
         @Override
         public boolean accept(File file) {
-            return isAllowedExtension(file) && !file.getName().startsWith(DIR_IMAGE_PREFIX);
+            return isAllowedExtension(file);
         }
 
         @Override

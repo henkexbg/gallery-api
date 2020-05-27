@@ -61,7 +61,8 @@ public interface GalleryService {
     /**
      * Retrieves an image with the specified dimensions. The implementation
      * should make sure the image is properly rescaled. The service may also
-     * define max and min image sizes.
+     * define max and min image sizes. If a directory is provided, a directory image should be provided, given that
+     * there are images in the sub-directories. If not, this may return a {@link java.io.FileNotFoundException}
      * 
      * @param publicPath
      *            Public path.
