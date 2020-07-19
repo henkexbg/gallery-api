@@ -438,11 +438,13 @@ public class GalleryServiceImpl implements GalleryService {
             return foundFiles;
         }
         File[] directories = directory.listFiles(File::isDirectory);
-        int i = 0;
-        while (i < directories.length && foundFiles.size() < nrImages) {
-            foundFiles.addAll(listFiles(directories[i], fileFilter, null)
-                    .stream().filter(f -> !isVideoNoException(f)).collect(Collectors.toList()));
-            i++;
+        if (directories != null) {
+            int i = 0;
+            while (i < directories.length && foundFiles.size() < nrImages) {
+                foundFiles.addAll(listFiles(directories[i], fileFilter, null)
+                        .stream().filter(f -> !isVideoNoException(f)).collect(Collectors.toList()));
+                i++;
+            }
         }
         return foundFiles.subList(0, Math.min(nrImages, foundFiles.size()));
     }
