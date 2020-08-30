@@ -408,11 +408,21 @@ public class GalleryServiceImpl implements GalleryService {
         File directoryImage = determineDirectoryImage(directory);
         if (!directoryImage.exists() ||
                 directoryImage.lastModified() < System.currentTimeMillis() - (directoryImageMaxAgeMinutes * 60000)) {
-            LOG.debug("Will generate new composite image for directory {}", directoryImage);
+            LOG.debug("Evaluating directory image for {}", directory);
             List<File> imagesForCompositeDirectoryImage = findImagesForCompositeDirectoryImage(directory);
             if (!imagesForCompositeDirectoryImage.isEmpty()) {
-                imageResizeService.generateCompositeImage(
-                        imagesForCompositeDirectoryImage, directoryImage, maxImageWidth, maxImageHeight);
+                long newestSourceImageTimestamp = imagesForCompositeDirectoryImage.stream().sorted(
+                        (a,b) -> Long.compare(b.lastModified(), a.lastModified())).findFirst().get().lastModified();
+                if (directoryImage.exists() && newestSourceImageTimestamp < directoryImage.lastModified()) {
+                    // Extra optimization. If the directory image has expired, but the composite images are not newer
+                    // than the current directory image, just update the last modified on the directory image
+                    LOG.debug("Keeping expired directory image, renewing timestamp");
+                    directoryImage.setLastModified(System.currentTimeMillis());
+                } else {
+                    LOG.debug("Will generate new composite image for directory {}", directoryImage);
+                    imageResizeService.generateCompositeImage(
+                            imagesForCompositeDirectoryImage, directoryImage, maxImageWidth, maxImageHeight);
+                }
             } else {
                 // Create empty file so that we can check the timestamp towards it and not always try to generate a new
                 // file for directories without images.

@@ -18,6 +18,7 @@
         <property name="resizeDir" value="${gallery.resizeDir}" />
         <property name="maxImageWidth" value="${gallery.imageResizing.maxImageWidth}" />
         <property name="maxImageHeight" value="${gallery.imageResizing.maxImageHeight}" />
+        <property name="directoryImageMaxAgeMinutes" value="${gallery.imageResizing.directoryImageMaxAgeMinutes}" />
         <property name="allowedFileExtensions">
             <list>
                 <value>jpeg</value>

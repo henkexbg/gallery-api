@@ -65,6 +65,9 @@ gallery.videoConversion.blacklistedVideosFile=C:/dev/gallery-test-data/gallery-b
 gallery.imageResizing.maxImageWidth=5000
 gallery.imageResizing.maxImageHeight=5000
 
+# Max age of generated directory images before re-validation towards potential new images in directory
+gallery.imageResizing.directoryImageMaxAgeMinutes=1440
+
 # This is only needed if ImageResizeServiceIMImpl is used for resizing
 #gallery.imageMagickPath=C:/Program Files/ImageMagick-6.9.3-Q16
 

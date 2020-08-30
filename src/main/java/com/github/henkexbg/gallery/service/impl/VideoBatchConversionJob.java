@@ -129,7 +129,7 @@ public class VideoBatchConversionJob {
             for (GalleryFile oneGalleryFile : allVideos) {
                 String oneGalleryFileCanonicalPath = oneGalleryFile.getActualFile().getCanonicalPath();
                 if (blacklistedVideoPaths.contains(oneGalleryFileCanonicalPath)) {
-                    LOG.info("Ignoring blacklisted video {}", oneGalleryFileCanonicalPath);
+                    LOG.debug("Ignoring blacklisted video {}", oneGalleryFileCanonicalPath);
                     continue;
                 }
                 for (String oneConversionMode : videoConversionModes) {
