@@ -1,9 +1,5 @@
 package com.github.henkexbg.gallery.bean;
 
-import com.github.henkexbg.gallery.bean.GalleryFile;
-
-import java.io.File;
-
 /**
  * Simple POJO describing a gallery directory. This links together a public path with
  * the actual directory on the file system.

@@ -22,8 +22,6 @@
 package com.github.henkexbg.gallery.controller.model;
 
 import java.util.List;
-import java.util.Map;
-
 /**
  * POJO defining one gallery listing response. This response contains a number
  * of different attributes for the current directory, including sub-directories,

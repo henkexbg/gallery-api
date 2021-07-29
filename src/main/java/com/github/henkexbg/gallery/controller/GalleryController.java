@@ -113,7 +113,7 @@ public class GalleryController {
      *             scenarios, and the {@link IOException} itself for generic
      *             errors.
      */
-    @RequestMapping(value = "/service/**", method = RequestMethod.GET)
+    @RequestMapping(value = DIR_LISTING_PREFIX + "**", method = RequestMethod.GET)
     public
     @ResponseBody
     ListingContext getListing(HttpServletRequest servletRequest, Model model) throws IOException {

@@ -1,7 +1,5 @@
 package com.github.henkexbg.gallery.controller.model;
 
-import com.github.henkexbg.gallery.bean.GalleryFile;
-
 /**
  * POJO defining one gallery directory. This directory will be sent back to the requesting
  * entity (of course with possible transformation to for instance JSON).
