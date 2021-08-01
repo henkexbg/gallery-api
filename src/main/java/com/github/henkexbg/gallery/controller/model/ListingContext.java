@@ -43,10 +43,14 @@ public class ListingContext {
     private List<GalleryFileHolder> images;
 
     private List<GalleryFileHolder> videos;
+    
+    private List<GalleryFileHolder> media;
 
     private List<String> videoFormats;
     
     private boolean allowCustomImageSizes;
+    
+    private boolean separateImagesAndVideos = false;
     
     private List<ImageFormat> imageFormats;
 
@@ -90,7 +94,15 @@ public class ListingContext {
         this.videos = videos;
     }
 
-    public List<String> getVideoFormats() {
+    public List<GalleryFileHolder> getMedia() {
+		return media;
+	}
+
+	public void setMedia(List<GalleryFileHolder> media) {
+		this.media = media;
+	}
+
+	public List<String> getVideoFormats() {
         return videoFormats;
     }
 
@@ -105,8 +117,16 @@ public class ListingContext {
     public void setAllowCustomImageSizes(boolean allowCustomImageSizes) {
         this.allowCustomImageSizes = allowCustomImageSizes;
     }
+    
+    public boolean isSeparateImagesAndVideos() {
+		return separateImagesAndVideos;
+	}
 
-    public List<ImageFormat> getImageFormats() {
+	public void setSeparateImagesAndVideos(boolean separateImagesAndVideos) {
+		this.separateImagesAndVideos = separateImagesAndVideos;
+	}
+
+	public List<ImageFormat> getImageFormats() {
         return imageFormats;
     }
 

@@ -5,6 +5,10 @@ gallery.resizeDir=C:/dev/gallery-test-data/resize
 # false, only specific image formats are allowed.
 gallery.allowCustomImageSizes=false
 
+# If true, listing responses will contain images and videos separately.
+# If false, images and videos will be returned mixed in the media attribute.
+gallery.separateImagesAndVideos=false
+
 # Properties file with user, group and password info for Spring security.
 # Format of property is spring, where file system needs to be prefixed by
 # 'file:' .

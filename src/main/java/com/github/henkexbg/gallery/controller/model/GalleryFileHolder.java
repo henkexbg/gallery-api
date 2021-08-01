@@ -39,6 +39,8 @@ public class GalleryFileHolder {
     private String contentType;
 
     private String filename;
+    
+    private String name;
 
     public String getFreeSizePath() {
         return freeSizePath;
@@ -79,5 +81,13 @@ public class GalleryFileHolder {
     public void setContentType(String contentType) {
         this.contentType = contentType;
     }
+
+	public String getName() {
+		return name;
+	}
+
+	public void setName(String name) {
+		this.name = name;
+	}
 
 }

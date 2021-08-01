@@ -83,6 +83,8 @@ public class GalleryController {
     private GalleryService galleryService;
 
     private boolean allowCustomImageSizes = false;
+    
+    private boolean separateImagesAndVideos = false;
 
     @Required
     public void setGalleryService(GalleryService galleryService) {
@@ -96,8 +98,12 @@ public class GalleryController {
     public void setAllowCustomImageSizes(boolean allowCustomImageSizes) {
         this.allowCustomImageSizes = allowCustomImageSizes;
     }
+    
+    public void setSeparateImagesAndVideos(boolean separateImagesAndVideos) {
+		this.separateImagesAndVideos = separateImagesAndVideos;
+	}
 
-    /**
+	/**
      * Retrieves the listing for a given path (which can be empty). The response
      * can contain media in the shape of {@link GalleryFileHolder} instances as
      * well as sub-directories.
@@ -123,6 +129,7 @@ public class GalleryController {
         try {
             ListingContext listingContext = new ListingContext();
             listingContext.setAllowCustomImageSizes(allowCustomImageSizes);
+            listingContext.setSeparateImagesAndVideos(separateImagesAndVideos);
             listingContext.setImageFormats(imageFormats);
             listingContext.setVideoFormats(galleryService.getAvailableVideoModes());
             if (StringUtils.isBlank(path)) {
@@ -135,6 +142,7 @@ public class GalleryController {
                     throw new ResourceNotFoundException();
                 }
                 LOG.debug("{} media files found", directoryListing.size());
+                if (separateImagesAndVideos) {
                 List<GalleryFile> galleryImages = directoryListing.stream().filter(gi -> GalleryFileType.IMAGE.equals(gi.getType()))
                         .collect(Collectors.toList());
                 List<GalleryFileHolder> listing = convertToGalleryFileHolders(contextPath, galleryImages);
@@ -143,6 +151,10 @@ public class GalleryController {
                         .collect(Collectors.toList());
                 List<GalleryFileHolder> videoHolders = convertToGalleryFileHolders(contextPath, galleryVideos);
                 listingContext.setVideos(videoHolders);
+                
+                } else {
+                	listingContext.setMedia(convertToGalleryFileHolders(contextPath, directoryListing));
+                }
                 listingContext.setDirectories(convertToGalleryDirectoryHolders(contextPath, galleryService.getDirectories(path)));
             }
             return listingContext;
