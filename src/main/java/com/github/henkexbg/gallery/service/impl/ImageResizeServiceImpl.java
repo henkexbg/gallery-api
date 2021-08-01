@@ -23,7 +23,6 @@ package com.github.henkexbg.gallery.service.impl;
 
 import java.awt.*;
 import java.awt.geom.AffineTransform;
-import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -38,7 +37,6 @@ import javax.imageio.ImageIO;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,46 +51,55 @@ import com.github.henkexbg.gallery.service.ImageResizeService;
  */
 public class ImageResizeServiceImpl implements ImageResizeService {
 
-    private final Logger LOG = LoggerFactory.getLogger(getClass());
+	private final Logger LOG = LoggerFactory.getLogger(getClass());
 
-    @Override
-    public void resizeImage(File origImage, File newImage, int width, int height) throws IOException {
-        LOG.debug("Entering resizeImage(origImage={}, width={}, height={})", origImage, width, height);
-        long startTime = System.currentTimeMillis();
-        InputStream is = new BufferedInputStream(new FileInputStream(origImage));
-        BufferedImage originalImage = ImageIO.read(is);
-        is.close();
-        int origWidth = originalImage.getWidth();
-        int origHeight = originalImage.getHeight();
-        LOG.debug("Original size of image - width: {}, height={}", origWidth, height);
-        float widthFactor = ((float) origWidth) / ((float) width);
-        float heightFactor = ((float) origHeight) / ((float) height);
-        float maxFactor = Math.max(widthFactor, heightFactor);
-        int newHeight, newWidth;
-        if (maxFactor > 1) {
-            newHeight = (int) (((float) origHeight) / maxFactor);
-            newWidth = (int) (((float) origWidth) / maxFactor);
-        } else {
-            newHeight = origHeight;
-            newWidth = origWidth;
-        }
-        BufferedImage scaledImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g = scaledImage.createGraphics();
-        AffineTransform at = AffineTransform.getScaleInstance(((float) newWidth) / ((float) origWidth), ((float) newHeight) / ((float) origHeight));
-        //g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g.drawRenderedImage(originalImage, at);
-        LOG.debug("Size of scaled image will be: width={}, height={}", newWidth, newHeight);
-        OutputStream resultImageOutputStream = new BufferedOutputStream(FileUtils.openOutputStream(newImage));
-        String extension = FilenameUtils.getExtension(origImage.getName());
-        ImageIO.write(scaledImage, extension, resultImageOutputStream);
-        IOUtils.closeQuietly(resultImageOutputStream);
-        long duration = System.currentTimeMillis() - startTime;
-        LOG.debug("Time in milliseconds to scale {}: {}", newImage.toString(), duration);
-    }
+	@Override
+	public void resizeImage(File originalImageFile, File newImageFile, int width, int height) throws IOException {
+		LOG.debug("Entering resizeImage(originalImageFile={}, newImageFile={}, width={}, height={})", originalImageFile,
+				newImageFile, width, height);
+		long startTime = System.currentTimeMillis();
+		InputStream is = new BufferedInputStream(new FileInputStream(originalImageFile));
+		BufferedImage originalImage = ImageIO.read(is);
+		if (originalImage == null) {
+			String errorMessage = String.format("File %s could not be parsed as an image",
+					originalImageFile.getCanonicalPath());
+			LOG.error(errorMessage);
+		}
+		is.close();
+		int origWidth = originalImage.getWidth();
+		int origHeight = originalImage.getHeight();
+		LOG.debug("Original size of image - width: {}, height={}", origWidth, height);
+		float widthFactor = ((float) origWidth) / ((float) width);
+		float heightFactor = ((float) origHeight) / ((float) height);
+		float maxFactor = Math.max(widthFactor, heightFactor);
+		int newHeight, newWidth;
+		if (maxFactor > 1) {
+			newHeight = (int) (((float) origHeight) / maxFactor);
+			newWidth = (int) (((float) origWidth) / maxFactor);
+		} else {
+			newHeight = origHeight;
+			newWidth = origWidth;
+		}
+		BufferedImage scaledImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
+		Graphics2D g = scaledImage.createGraphics();
+		AffineTransform at = AffineTransform.getScaleInstance(((float) newWidth) / ((float) origWidth),
+				((float) newHeight) / ((float) origHeight));
+		// g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+		// RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+		g.drawRenderedImage(originalImage, at);
+		LOG.debug("Size of scaled image will be: width={}, height={}", newWidth, newHeight);
+		OutputStream resultImageOutputStream = new BufferedOutputStream(FileUtils.openOutputStream(newImageFile));
+		String extension = FilenameUtils.getExtension(originalImageFile.getName());
+		ImageIO.write(scaledImage, extension, resultImageOutputStream);
+		resultImageOutputStream.flush();
+		resultImageOutputStream.close();
+		long duration = System.currentTimeMillis() - startTime;
+		LOG.debug("Time in milliseconds to scale {}: {}", newImageFile.toString(), duration);
+	}
 
-    @Override
-    public void generateCompositeImage(List<File> origImages, File newImage, int width, int height) throws IOException {
-        //TODO: Use multiple images to build directory image
-        resizeImage(origImages.get(0), newImage, width, height);
-    }
+	@Override
+	public void generateCompositeImage(List<File> origImages, File newImage, int width, int height) throws IOException {
+		// TODO: Use multiple images to build directory image
+		resizeImage(origImages.get(0), newImage, width, height);
+	}
 }

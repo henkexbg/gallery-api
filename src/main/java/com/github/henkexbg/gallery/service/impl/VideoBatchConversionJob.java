@@ -21,9 +21,7 @@
 package com.github.henkexbg.gallery.service.impl;
 
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -34,16 +32,15 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
-import ch.qos.logback.core.util.FileUtil;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Required;
 
+import com.github.henkexbg.gallery.bean.GalleryFile;
 import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
 import com.github.henkexbg.gallery.service.GalleryService;
-import com.github.henkexbg.gallery.bean.GalleryFile;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 
 /**
@@ -168,7 +165,7 @@ public class VideoBatchConversionJob {
                 LOG.error("Error when retrieving list of blacklisted videos: {}. Returning empty list", ioe);
             }
         }
-        return Collections.EMPTY_LIST;
+        return Collections.emptyList();
     }
 
     private void addBlacklistedVideo(String videoPath) {
