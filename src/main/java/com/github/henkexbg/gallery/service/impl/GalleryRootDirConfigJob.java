@@ -42,7 +42,6 @@ import javax.annotation.PreDestroy;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Required;
 
 import com.github.henkexbg.gallery.service.GalleryRootDirChangeListener;
 import com.github.henkexbg.gallery.bean.GalleryRootDir;
@@ -90,12 +89,10 @@ public class GalleryRootDirConfigJob {
         }
     }
 
-    @Required
     public void setConfigFile(File configFile) {
         this.configFile = configFile;
     }
 
-    @Required
     public void setGalleryRootDirChangeListeners(Collection<GalleryRootDirChangeListener> galleryRootDirChangeListeners) {
         this.galleryRootDirChangeListeners = galleryRootDirChangeListeners;
     }

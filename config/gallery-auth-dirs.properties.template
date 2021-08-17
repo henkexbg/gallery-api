@@ -1,0 +1,16 @@
+# This file defines the authorization mapping between user groups and
+# directories.
+# NOTE: This file is reloaded during runtime if any changes are made. This
+# means that directories can be changed on the fly as long as a user with
+# the role already exists.
+# Each line has the following form:
+# [ROLE_X].[PUBLIC_DIR_NAME]=[ACTUAL_DIR_PATH]
+# ROLE_X should be a role assigned to one or more users in
+# gallery-users.properties defined above.
+# PUBLIC_DIR_NAME is the visible name of the directory
+# ACTUAL_DIR_PATH points to the actual directory 
+# Example (note that last example shows how to create a base directory name
+# with spaces):
+# ROLE_USER1.main=C:/temp/directory1
+# ROLE_USER1.second=C:/temp/directory2
+# ROLE_PUBLIC.Public\ Pictures=C:/temp/public

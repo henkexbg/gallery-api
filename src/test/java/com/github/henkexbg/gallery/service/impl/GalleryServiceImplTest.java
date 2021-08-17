@@ -21,7 +21,6 @@
 package com.github.henkexbg.gallery.service.impl;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Mock.*;
 import static org.mockito.Mockito.when;
 
 import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
@@ -59,7 +58,7 @@ public class GalleryServiceImplTest {
     public void betweenTests() throws Exception {
         galleryService = new GalleryServiceImpl();
         galleryService.setResizeDir(RESIZE_DIR);
-        Set allowedFileExtensions = new HashSet();
+        Set<String> allowedFileExtensions = new HashSet<>();
         allowedFileExtensions.add("jpg");
         MockitoAnnotations.initMocks(this);
         galleryService.setGalleryAuthorizationService(galleryAuthorizationService);

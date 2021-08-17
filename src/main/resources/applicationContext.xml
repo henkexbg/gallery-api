@@ -8,9 +8,6 @@
         http://www.springframework.org/schema/util
         http://www.springframework.org/schema/util/spring-util-4.3.xsd">
 
-    <context:property-placeholder location="classpath:gallery.properties" />
-    <context:component-scan base-package="com.github.henkexbg.gallery.service" />
-
     <bean id="galleryService" class="com.github.henkexbg.gallery.service.impl.GalleryServiceImpl">
         <property name="galleryAuthorizationService" ref="galleryAuthorizationService" />
         <property name="imageResizeService" ref="imageResizeService" />
@@ -57,15 +54,12 @@
         <property name="imageCommandTemplate" value="${gallery.videoConversion.imageCommandTemplate}" />
         <property name="externalProcessErrorLogFile" value="${gallery.videoConversion.externalProcessErrorLogFile}" />
     </bean>
-    
-    <util:map id="videoConversionModes">
-        <entry key="COMPACT" value="${gallery.videoConversion.mode.compact}" />            
-    </util:map>
-    
+
     <bean id="videoBatchConversionJob" class="com.github.henkexbg.gallery.service.impl.VideoBatchConversionJob">
         <property name="galleryService" ref="galleryService" />
         <property name="galleryAuthorizationService" ref="galleryAuthorizationService" />
         <property name="blacklistedVideosFilePath" value="${gallery.videoConversion.blacklistedVideosFile}" />
     </bean>
+
     
 </beans>

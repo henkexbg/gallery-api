@@ -36,7 +36,6 @@ import javax.annotation.PreDestroy;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Required;
 
 import com.github.henkexbg.gallery.service.VideoConversionService;
 
@@ -79,7 +78,6 @@ public class VideoConversionServiceImpl implements VideoConversionService {
      *
      * @param conversionModes A map of conversion modes.
      */
-    @Required
     public void setConversionModes(Map<String, String> conversionModes) {
         this.conversionModes = conversionModes;
     }
@@ -92,7 +90,6 @@ public class VideoConversionServiceImpl implements VideoConversionService {
         this.externalBinaryPath = externalBinaryPath;
     }
 
-    @Required
     public void setImageCommandTemplate(String imageCommandTemplate) {
         this.imageCommandTemplate = imageCommandTemplate;
     }

@@ -36,7 +36,6 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Required;
 
 import com.github.henkexbg.gallery.bean.GalleryFile;
 import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
@@ -74,12 +73,10 @@ public class VideoBatchConversionJob {
 
     private ScheduledExecutorService executor;
 
-    @Required
     public void setGalleryService(GalleryService galleryService) {
         this.galleryService = galleryService;
     }
 
-    @Required
     public void setGalleryAuthorizationService(GalleryAuthorizationService galleryAuthorizationService) {
         this.galleryAuthorizationService = galleryAuthorizationService;
     }

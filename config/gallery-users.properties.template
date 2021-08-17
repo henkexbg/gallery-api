@@ -1,0 +1,7 @@
+# The format within this property file should be standard Spring Security
+# format. Key is the username, first part of the value is the password, the
+# {noop} syntax is used by Spring Security to determine the cipher. In this
+# case it's cleartext in the file. Then comes a list of roles, and then an
+# enabled flag, like this for users user1 and public:
+# user1={noop}user1-password,ROLE_USER,ROLE_USER1,ROLE_PUBLIC,enabled
+# public={noop}public-password,ROLE_USER,ROLE_PUBLIC,enabled

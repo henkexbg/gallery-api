@@ -38,7 +38,6 @@ import org.apache.commons.io.filefilter.IOFileFilter;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Required;
 
 import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
 import com.github.henkexbg.gallery.service.GalleryService;
@@ -97,22 +96,18 @@ public class GalleryServiceImpl implements GalleryService {
 		}
 	}
 
-	@Required
 	public void setGalleryAuthorizationService(GalleryAuthorizationService galleryAuthorizationService) {
 		this.galleryAuthorizationService = galleryAuthorizationService;
 	}
 
-	@Required
 	public void setImageResizeService(ImageResizeService imageResizeService) {
 		this.imageResizeService = imageResizeService;
 	}
 
-	@Required
 	public void setVideoConversionService(VideoConversionService videoConversionService) {
 		this.videoConversionService = videoConversionService;
 	}
 
-	@Required
 	public void setResizeDir(File resizeDir) {
 		this.resizeDir = resizeDir;
 	}

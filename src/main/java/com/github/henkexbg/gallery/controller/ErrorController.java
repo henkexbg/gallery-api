@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 Henrik Bjerne
+ * Copyright (c) 2021 Henrik Bjerne
  * <p>
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,6 +21,7 @@
 package com.github.henkexbg.gallery.controller;
 
 import javax.servlet.http.HttpServletRequest;
+
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -34,10 +35,10 @@ import com.github.henkexbg.gallery.controller.model.GalleryError;
  *
  */
 @Controller
-public class ErrorController {
+public class ErrorController implements org.springframework.boot.web.servlet.error.ErrorController {
 
 	/**
-	 * Returns a minimal error response with just the error-code.
+	 * Returns a minimal error response with just the error-code as JSON.
 	 * 
 	 * @param httpRequest
 	 * @return {@link GalleryError}
