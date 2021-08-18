@@ -1,13 +1,9 @@
+###############################################################################
+# ENVIRONMENT-SPECIFIC (MOSTLY REQUIRED) CONFIG
+###############################################################################
+
 # This is where resized images and converted videos will be stored.
 gallery.resizeDir=/full/path/to/resize-dir
-
-# Defines whether user-defined images sizes should be allowed per request. If
-# false, only specific image formats are allowed.
-gallery.allowCustomImageSizes=false
-
-# If true, listing responses will contain images and videos separately.
-# If false, images and videos will be returned mixed in the media attribute.
-gallery.separateImagesAndVideos=false
 
 # Properties file with user, group and password info for Spring security.
 # See separate template for more details.
@@ -17,6 +13,31 @@ gallery.users.propertiesFile=/full/path/to/gallery-config/gallery-users.properti
 # mapping between user groups and directories.
 # See separate template for more details.
 gallery.groupDirAuth.properties=/full/path/to/gallery-config/gallery-auth-dirs.properties
+
+# This should point to the binary used for video conversion, for instance
+# avconv or ffmpeg. Either just the name or the full path can be entered,
+# depending on the environment.
+gallery.videoConversion.binary/full/path/to/ffmpeg/bin/ffmpeg.exe
+#gallery.videoConversion.binary=avconv
+
+# Writes all videos that could not successfully be converted. Once on the list,
+# no further attempt will be made to convert that video.
+gallery.videoConversion.blacklistedVideosFile=/full/path/to/gallery-config/gallery-black-listed-videos.txt
+
+###############################################################################
+# OPTIONAL CONFIG WITH DEFAULTS
+###############################################################################
+
+# Defines whether user-defined images sizes should be allowed per request. If
+# false, only specific image formats are allowed.
+gallery.allowCustomImageSizes=false
+
+# If true, listing responses will contain images and videos separately.
+# If false, images and videos will be returned mixed in the media attribute.
+gallery.separateImagesAndVideos=false
+
+# Comma-separated list of allowed image and video formats. Case doesn't matter.
+gallery.allowedFileExtensions=jpeg,jpg,png,gif,mp4
 
 # Defines the allowed image formats. Multiple formats can be specified by list
 # notation. Each format has three properties: code, width and height.
@@ -39,12 +60,6 @@ gallery.image-formats[3].height=300
 gallery.image-formats[4].code=directory
 gallery.image-formats[4].width=450
 gallery.image-formats[4].height=450
-
-# This should point to the binary used for video conversion, for instance
-# avconv or ffmpeg. Either just the name or the full path can be entered,
-# depending on the environment.
-gallery.videoConversion.binary=C:/tools/ffmpeg-2021-07-18/bin/ffmpeg.exe
-#gallery.videoConversion.binary=avconv
 
 # A map of video conversion modes, where the last part of the property name
 # denotes the name of the conversion mode itself. Multiple modes can be listed.
@@ -73,10 +88,6 @@ gallery.videoConversion.maxWaitTimeSeconds=3600
 # Optional. If set, any video conversion call will redirect the error output
 # from the external process to the file specified.
 gallery.videoConversion.externalProcessErrorLogFile=
-
-# Writes all videos that could not successfully be converted. Once on the list,
-# no further attempt will be made to convert that video.
-gallery.videoConversion.blacklistedVideosFile=C:/dev/gallery-test-data/gallery-black-listed-videos.txt
 
 # Max pixel sizes of resized images The proportions will always be kept.
 gallery.imageResizing.maxImageWidth=5000

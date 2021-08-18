@@ -16,15 +16,7 @@
         <property name="maxImageWidth" value="${gallery.imageResizing.maxImageWidth}" />
         <property name="maxImageHeight" value="${gallery.imageResizing.maxImageHeight}" />
         <property name="directoryImageMaxAgeMinutes" value="${gallery.imageResizing.directoryImageMaxAgeMinutes}" />
-        <property name="allowedFileExtensions">
-            <list>
-                <value>jpeg</value>
-                <value>jpg</value>
-                <value>png</value>
-                <value>gif</value>
-                <value>mp4</value>
-            </list>
-        </property>
+        <property name="allowedFileExtensions" value="#{'${gallery.allowedFileExtensions}'.split(',')}"></property>
     </bean>
 
     <alias name="galleryAuthorizationServiceSS" alias="galleryAuthorizationService" />
