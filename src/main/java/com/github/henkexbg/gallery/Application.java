@@ -41,6 +41,7 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import com.github.henkexbg.gallery.controller.model.ImageFormat;
@@ -67,6 +68,11 @@ public class Application extends WebSecurityConfigurerAdapter implements WebMvcC
 		SpringApplication.run(Application.class, args);
 	}
 
+	@Override
+	public void addViewControllers(ViewControllerRegistry registry) {
+	    registry.addViewController("/").setViewName("forward:/index.html");
+	}
+	
 	@Value("${gallery.web.allowedOrigins}")
 	public void setAllowedCorsOrigins(String allowedCorsOrigins) {
 		this.allowedCorsOrigins = allowedCorsOrigins;

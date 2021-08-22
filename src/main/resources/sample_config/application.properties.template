@@ -17,7 +17,7 @@ gallery.groupDirAuth.properties=/full/path/to/gallery-config/gallery-auth-dirs.p
 # This should point to the binary used for video conversion, for instance
 # avconv or ffmpeg. Either just the name or the full path can be entered,
 # depending on the environment.
-gallery.videoConversion.binary/full/path/to/ffmpeg/bin/ffmpeg.exe
+gallery.videoConversion.binary=/full/path/to/ffmpeg/bin/ffmpeg.exe
 #gallery.videoConversion.binary=avconv
 
 # Writes all videos that could not successfully be converted. Once on the list,
@@ -114,4 +114,3 @@ server.error.whitelabel.enabled=false
 
 # Extra logging can be configured here
 #logging.level.root=DEBUG
-
