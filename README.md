@@ -1,10 +1,13 @@
 # Gallery-API
-Headless REST application for serving images and videos. No UI is included - it's a pure REST interface allowing navigation of a file tree and accessing media files. The backend takes care of scaling images, either to fully custom sizes or predefined image formats. Videos are transcoded (with the help of external binaries), and can be retrieved in a streaming fashion via HTTP Range headers.
+Headless REST application for serving images and videos. No UI is included - it's a pure REST interface allowing navigation of a file tree and accessing media files. The backend takes care of scaling images, either to fully custom sizes or predefined image formats. Videos are transcoded (with the help of external binaries), and can be retrieved in a streaming fashion via HTTP Range headers. All access is behind authentication, and different users and roles can be set up.
 
 # Purpose
 To be able to easily make your images and videos available to yourself and share with friends and family without having to upload them to a 3rd-party. This webapp is up and running in a few minutes and can easily be deployed either to a home server or a virtual machine somewhere in some cloud. This application is protected by default with basic authentication. Different users can be set up who can access different media.
 
 There was also a clear intent with separation of concern in excluding any UI from this artifact - the services of this webapp can easily be consumed by any other application (see sample requests/responses below).
+
+# Optional UI
+There is a separate project that adds a UI on top of the REST webapp, see https://github.com/henkexbg/gallery.
 
 # Features
 - REST API for browsing directories
@@ -17,9 +20,6 @@ There was also a clear intent with separation of concern in excluding any UI fro
 - A video blacklist exists to ensure videos that fail to transcode keep hogging resources forever
 - Users are configured server-side. There is no registration
 
-# Optional UI
-There is a separate project that adds a UI on top of the REST webapp, see https://github.com/henkexbg/gallery.
-
 # How It Works
 The application works by configuring:
 - Users, along with their passwords and roles
@@ -27,7 +27,7 @@ The application works by configuring:
 - For video transcoding, the external binary needs to be specified (such as ffmpeg)
 - Images are resized in Java code per default, and does not need an external binary. For those who wish, an implementation that uses ImageMagick also exists
 
-The directories and sub-directories will then be made available by directly accessing the URL for that directory. The URL may differ between users as it depends on the configuration, see below.
+The directories and sub-directories will then be made available by directly accessing the URL for that directory. The URL may differ between users as it depends on the role configuration, see below.
 
 The exact configuration will be given further down along with JSON responses, but a high level example of the app functionality follows:
 
@@ -73,8 +73,7 @@ https://search.maven.org/remotecontent?filepath=com/github/henkexbg/gallery-api/
 # Build From Source
 - Go to root directory of repo [REPO_ROOT].
 - Run mvn clean package
-- In [REPO_ROOT]/target/ you can now either take the war file or the directory named gallery-api-X.X.X-SNAPSHOT/.
-- The war-file is essentially just a zipped version of the directory.
+- In [REPO_ROOT]/target/ you can now find the JAR file called gallery-api.jar (or gallery-api-X.X.X-SNAPSHOT.jar for snapshot versions).
 
 # Configuration
 The application uses standard Spring Boot conventions for configuration. That means, the application.properties file can be placed either next to the JAR file, or in a directory called config next to the JAR file. Sample configuration of application.properties as well as two other properties files can be found here: https://github.com/henkexbg/gallery-api/tree/master/src/main/resources/sample_config.
@@ -91,7 +90,16 @@ While there are many properties that can be changed, the required ones are the f
 | gallery.videoConversion.blacklistedVideosFile | The application logs all videos that could not successfully be converted. Once on the list, no further attempt will be made to convert that video. |
 
 # Optional Configuration
-A recommendation would be to use SSL, either via a fronting web server such as HTTPD or by other means, especially since HTTP basic auth is used, but the setup of that is outside the scope of this webapp.
+A strong recommendation would be to use SSL, either via a fronting web server such as HTTPD or by other means, especially since HTTP basic auth is used, but the setup of that is outside the scope of this webapp.
+
+# Run
+
+The program can be run by calling
+
+````shell
+java -jar gallery-api.jar
+````
+There are multiple ways to run this as a background process, all of which depend on the operating system used. Google is your friend :) .
 
 # Sample JSON Request/Response
 
@@ -112,14 +120,12 @@ The response will contains all information of what the sample directory contains
 {  
    "comment":"Name of current dir",
    "currentPathDisplay":"sample",
-   "comment":"Previous dir if any",
-   "previousPath":null,
    "comment":"List of child directories of the current directory",
    "directories":{  
          "sample2":"/gallery/service/sample/sample2"
    },
-   "comment":"Next comes a list of all images",
-   "images":[  
+   "comment":"Next comes a list of all images and videos",
+   "media":[  
       {  
          "comment":"freeSizePath is the URL template for a custom size image. Width and height will need to be replaced",
          "freeSizePath":"/gallery/customImage/{width}/{height}/sample/IMG_20150124_113749.jpg",
@@ -133,15 +139,14 @@ The response will contains all information of what the sample directory contains
          "formatPath":"/gallery/image/{imageFormat}/sample/IMG_2909.JPG",
          "contentType":"image/jpeg",
          "filename":"IMG_2909.JPG"
-      }
-   ],
-   "comment":"Next, all videos",
-   "videos":[  
+      },
       {  
-         "comment":"freeSizePath will always be null for videos",
+         "comment":"freeSizePath works as for images, and gives a still image of the video",
          "freeSizePath":null,
-         "comment":"formatPath follows the same idea as that for images, though only conversionFormat needs to be replaced",
-         "formatPath":"/gallery/video/{conversionFormat}/sample/MVI_2273.MP4",
+         "comment":"formatPath follows the same idea as that for images and gives a still image of the video",
+         "formatPath":"/gallery/image/{imageFormat}/sample/MVI_2273.MP4",
+         "comment":"Gives the video URL, though only conversionFormat needs to be replaced",
+         "videoPath":"/gallery/video/{conversionFormat}/sample/MVI_2273.MP4",
          "contentType":"video/mp4",
          "filename":"MVI_2273.MP4"
       }
@@ -151,7 +156,9 @@ The response will contains all information of what the sample directory contains
       "ORIGINAL"
    ],
    "comment":"Server config dictates whether custom image sizes are allowed, or only image formats",
-   "allowCustomImageSizes":false, 
+   "allowCustomImageSizes":false,
+   "comment":"if separateImagesAndVideos is true, images will be returned in the images attribute, and videos in the videos attribute"
+   "separateImagesAndVideos":false,
    "comment":"Image formats by codes, that also display the sizes they correspond to",
    "imageFormats":[  
       {  
