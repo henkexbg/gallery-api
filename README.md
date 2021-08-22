@@ -1,22 +1,35 @@
 # Gallery-API
-Headless REST application for serving images and videos. No UI is included - it's a pure REST interface allowing navigation of a file tree and accessing media files. The backend takes care of scaling images, either to fully custom sizes or predefined image formats. Videos are transcoded (with the help of external binaries), and can be retrieved in a streaming fashion via HTTP Range headers (utilized by HTML5 for instance when requesting videos).
+Headless REST application for serving images and videos. No UI is included - it's a pure REST interface allowing navigation of a file tree and accessing media files. The backend takes care of scaling images, either to fully custom sizes or predefined image formats. Videos are transcoded (with the help of external binaries), and can be retrieved in a streaming fashion via HTTP Range headers.
 
 # Purpose
-To be able to easily make your own images and videos available without having to upload them to a 3rd-party. This webapp is up and running in a few minutes and can easily be deployed either to a home server or a virtual machine somewhere in some cloud. While it is possible to configure it in another way, this application is protected by default (with basic authentication). Different users can be set up who can access different media.
-Focus was also put make it easy to deploy even for not super-tech-savvy people (it remains to be seen whether this goal was reached!), by for instance not requiring a database, but querying the filesystem in realtime.
+To be able to easily make your images and videos available to yourself and share with friends and family without having to upload them to a 3rd-party. This webapp is up and running in a few minutes and can easily be deployed either to a home server or a virtual machine somewhere in some cloud. This application is protected by default with basic authentication. Different users can be set up who can access different media.
 
 There was also a clear intent with separation of concern in excluding any UI from this artifact - the services of this webapp can easily be consumed by any other application (see sample requests/responses below).
 
-# Detailed Functionality
+# Features
+- REST API for browsing directories
+- Serves scaled images and transcoded videos
+- Requires authentication and validates that every single request is authenticated and authorized to view the requested content
+- Packaged as a simple Spring boot application that requires only Java - no database required
+- Automatically serves newly added content
+- Images are scaled ad-hoc
+- Transcoded videos are generated via a job or ad-hoc
+- A video blacklist exists to ensure videos that fail to transcode keep hogging resources forever
+- Users are configured server-side. There is no registration
+
+# Optional UI
+There is a separate project that adds a UI on top of the REST webapp, see https://github.com/henkexbg/gallery.
+
+# How It Works
 The application works by configuring:
 - Users, along with their passwords and roles
 - Directories that a certain role should have access to
-- For video transcoding, the external binary needs to be specified
+- For video transcoding, the external binary needs to be specified (such as ffmpeg)
 - Images are resized in Java code per default, and does not need an external binary. For those who wish, an implementation that uses ImageMagick also exists
 
-The directories and sub-directories will then be made available by directly accessing the URL for that directory.
+The directories and sub-directories will then be made available by directly accessing the URL for that directory. The URL may differ between users as it depends on the configuration, see below.
 
-The exact configuration will be given below, along with JSON responses, but a high level example of the app functionality follows:
+The exact configuration will be given further down along with JSON responses, but a high level example of the app functionality follows:
 
 Let's assume:
 - There is a directory called C:/some-base-dir/**image-dir**
@@ -40,15 +53,11 @@ To retrieve the actual image, perform the replacement as mentioned above. For ex
 All images that have been resized and videos that have been transcoded are stored under a resized directory.
 
 
-# Optional UI
-There is a separate project that adds a UI on top of the REST webapp, see https://github.com/henkexbg/gallery.
-
 # Demo
 Demo not available at the moment. Please see examples of API use further down.
 
 # Prerequisites
-- Java 8
-- A servlet container such as Apache Tomcat. Has been successfully tested with version 8 and 9.
+- Java 14
 - Maven (if building the webapp from source). Not required during runtime.
 
 # Maven Artifact ID
@@ -68,21 +77,21 @@ https://search.maven.org/remotecontent?filepath=com/github/henkexbg/gallery-api/
 - The war-file is essentially just a zipped version of the directory.
 
 # Configuration
-For convenience, the webapp root directory will be called [WEBAPP_HOME]
+The application uses standard Spring Boot conventions for configuration. That means, the application.properties file can be placed either next to the JAR file, or in a directory called config next to the JAR file. Sample configuration of application.properties as well as two other properties files can be found here: https://github.com/henkexbg/gallery-api/tree/master/src/main/resources/sample_config.
 
-Make a copy of [WEBAPP_HOME]/WEB-INF/classes/gallery.properties.sample and call it [WEBAPP_HOME]/WEB-INF/classes/gallery.properties.
+## application.properties
+While there are many properties that can be changed, the required ones are the following:
 
-This file contains a number of properties relevant to a specific environment. Each property is described in the file but a short rundown of the essential ones follows here.
-
-gallery.resizeDir - states the directory this webapp will use to store resized images and converted videos.
-
-gallery.users.propertiesFile - Points to the location of another properties file, which is used to configure the available users of the webapp and the roles of each user.
-
-gallery.groupDirAuth.properties - Points to the location of another properties file which states which roles can access which paths.
+| Property Name  | Description  |
+| ------------- | ------------- |
+| gallery.resizeDir | States the directory this webapp will use to store resized images and converted videos. |
+| gallery.users.propertiesFile | Points to the location of another properties file, which is used to configure the available users of the webapp and the roles of each user. See the sample file for reference. |
+| gallery.groupDirAuth.properties | Points to the location of another properties file which states which roles can access which paths. See the sample file for reference. |
+| gallery.videoConversion.binary | This should point to the binary used for video conversion, for instance avconv or ffmpeg. |
+| gallery.videoConversion.blacklistedVideosFile | The application logs all videos that could not successfully be converted. Once on the list, no further attempt will be made to convert that video. |
 
 # Optional Configuration
 A recommendation would be to use SSL, either via a fronting web server such as HTTPD or by other means, especially since HTTP basic auth is used, but the setup of that is outside the scope of this webapp.
-
 
 # Sample JSON Request/Response
 
