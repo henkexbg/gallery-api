@@ -36,7 +36,7 @@
                 <ref bean="galleryAuthorizationService" />
             </list>
         </property>
-        <property name="configFile" value="${gallery.groupDirAuth.properties}" />
+        <property name="configFile" value="${gallery.groupDirAuth.propertiesFile}" />
     </bean>
 
     <bean id="videoConversionService" class="com.github.henkexbg.gallery.service.impl.VideoConversionServiceImpl">
