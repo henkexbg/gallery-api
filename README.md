@@ -32,15 +32,15 @@ The directories and sub-directories will then be made available by directly acce
 The exact configuration will be given further down along with JSON responses, but a high level example of the app functionality follows:
 
 Let's assume:
-- There is a directory called C:/some-base-dir/**image-dir**
-- There is an image in this directory called **best-image-ever.jpg**
-- A user is configured with role **COOL-IMAGES**
-- The mapping for that role is: **ROLE_COOL-IMAGES.Best=C:/some-base-dir/image-dir**
+- There is a directory called `C:/some-base-dir/image-dir`
+- There is an image in this directory `called best-image-ever.jpg`
+- A user is configured with role `COOL-IMAGES`
+- The mapping for that role is: `ROLE_COOL-IMAGES.Best=C:/some-base-dir/image-dir`
 
-The word Best here is the public path, i.e. the path through which the content of the directory can be accessed.
-The user will now see **Best** as a possible option in the JSON response when calling [HOST]/gallery/service. They can now call [HOST]/gallery/service/Best, and all images, videos and sub-directories will be listed in the response.
+The word `Best` here is the public path, i.e. the path through which the content of the directory can be accessed.
+The user will now see `Best` as a possible option in the JSON response when calling `[ENDPOINT]/gallery/service`. They can now call `[ENDPOINT]/gallery/service/Best`, and all images, videos and sub-directories will be listed in the response.
 
-All images will be listed with a **formatPath**, which links to each image. Part of the link is a placeholder called {imageFormat}. This can be replaced with any of the formats that is also part of the response. Standard configuration allows four formats:
+All images will be listed with a **formatPath**, which links to each image. Part of the link is a placeholder called `{imageFormat}`. This can be replaced with any of the formats that is also part of the response. Standard configuration allows four formats:
 - uhd
 - qhd
 - fullhd
@@ -48,10 +48,9 @@ All images will be listed with a **formatPath**, which links to each image. Part
 
 As part of the response when requesting Best the image **best-image-ever.jpg** will have the formatPath: /gallery/image/{imageFormat}/Best/best-image-ever.jpg
 
-To retrieve the actual image, perform the replacement as mentioned above. For example, in order to get the fullhd version, the URL requested should be **/gallery/image/fullhd/Best/best-image-ever.jpg**
+To retrieve the actual image, perform the replacement as mentioned above. For example, in order to get the fullhd version, the URL requested should be `[ENDPOINT]/gallery/image/fullhd/Best/best-image-ever.jpg`
 
 All images that have been resized and videos that have been transcoded are stored under a resized directory.
-
 
 # Demo
 Demo not available at the moment. Please see examples of API use further down.
@@ -76,7 +75,7 @@ https://search.maven.org/remotecontent?filepath=com/github/henkexbg/gallery-api/
 - In [REPO_ROOT]/target/ you can now find the JAR file called gallery-api.jar (or gallery-api-X.X.X-SNAPSHOT.jar for snapshot versions).
 
 # Configuration
-The application uses standard Spring Boot conventions for configuration. That means, the application.properties file can be placed either next to the JAR file, or in a directory called config next to the JAR file. Sample configuration of application.properties as well as two other properties files can be found here: https://github.com/henkexbg/gallery-api/tree/master/src/main/resources/sample_config.
+The application uses standard Spring Boot conventions for configuration. That means, the `application.properties` file can be placed either next to the JAR file, or in a directory called config next to the JAR file (recommended). Sample configuration of `application.properties` as well as two other properties files can be found here: https://github.com/henkexbg/gallery-api/tree/master/src/main/resources/sample_config.
 
 ## application.properties
 While there are many properties that can be changed, the required ones are the following:
@@ -88,6 +87,18 @@ While there are many properties that can be changed, the required ones are the f
 | gallery.groupDirAuth.properties | Points to the location of another properties file which states which roles can access which paths. See the sample file for reference. |
 | gallery.videoConversion.binary | This should point to the binary used for video conversion, for instance avconv or ffmpeg. |
 | gallery.videoConversion.blacklistedVideosFile | The application logs all videos that could not successfully be converted. Once on the list, no further attempt will be made to convert that video. |
+
+Template configuration: https://github.com/henkexbg/gallery-api/blob/master/src/main/resources/sample_config/application.properties.template
+
+## gallery-users.properties
+Contains the credentials of the users. The format within this property file should be standard Spring Security format.
+
+Template configuration: https://github.com/henkexbg/gallery-api/blob/master/src/main/resources/sample_config/gallery-users.properties.template
+
+## gallery-auth-dirs.properties
+This file defines the authorization mapping between user groups and directories. Detailed format is outlined in the template configuration: https://github.com/henkexbg/gallery-api/blob/master/src/main/resources/sample_config/gallery-auth-dirs.properties.template
+
+**NOTE:** This file is reloaded during runtime if any changes are made. This means that directories can be changed on the fly as long as a user with the role already exists.
 
 # Optional Configuration
 A strong recommendation would be to use SSL, either via a fronting web server such as HTTPD or by other means, especially since HTTP basic auth is used, but the setup of that is outside the scope of this webapp.
