@@ -62,12 +62,12 @@ Demo not available at the moment. Please see examples of API use further down.
 # Maven Artifact ID
 - Group: com.github.henkexbg
 - Artifact ID: gallery-api
-- Latest release version: 1.0.0
+- Latest release version: 1.0.1
 
 # Download
 The whole JAR file can be downloaded from Maven Central. Latest version can be found here:
 
-https://search.maven.org/remotecontent?filepath=com/github/henkexbg/gallery-api/1.0.0/gallery-api-1.0.0.jar
+https://search.maven.org/remotecontent?filepath=com/github/henkexbg/gallery-api/1.0.1/gallery-api-1.0.1.jar
 
 # Build From Source
 - Go to root directory of repo [REPO_ROOT].
