@@ -136,7 +136,7 @@ public class GalleryServiceImpl implements GalleryService {
 		Collections.sort(rootDirCodes, String.CASE_INSENSITIVE_ORDER);
 		for (String oneRootDirCode : rootDirCodes) {
 			File oneRootDir = getRealFileOrDir(oneRootDirCode);
-			galleryDirectories.add(createGalleryDirectory(oneRootDirCode, oneRootDir));
+			galleryDirectories.add(createGalleryDirectory(oneRootDirCode, oneRootDir, oneRootDirCode));
 		}
 		return galleryDirectories;
 	}
@@ -381,19 +381,32 @@ public class GalleryServiceImpl implements GalleryService {
 	 * 
 	 * @param publicPath Public path.
 	 * @param actualDir  Directory.
+	 * @param dirName Name of gallery directory to be created
 	 * @return A {@link GalleryDirectory} for the given parameters
 	 * @throws IOException
 	 */
-	private GalleryDirectory createGalleryDirectory(String publicPath, File actualDir) throws IOException {
+	private GalleryDirectory createGalleryDirectory(String publicPath, File actualDir, String dirName) throws IOException {
 		GalleryDirectory galleryDirectory = new GalleryDirectory();
 		galleryDirectory.setPublicPath(publicPath);
-		galleryDirectory.setName(actualDir.getName());
+		galleryDirectory.setName(dirName);
 		File directoryImage = getDirectoryImage(actualDir);
 		if (directoryImage != null) {
 			// Use the public path of the directory, and combine it with the image
 			galleryDirectory.setImage(createGalleryFile(publicPath, directoryImage));
 		}
 		return galleryDirectory;
+	}
+	
+	/**
+	 * As {@link #createGalleryDirectory(String, File, String)}, but uses the directory name as gallery directory name.
+	 * 
+	 * @param publicPath Public path.
+	 * @param actualDir  Directory.
+	 * @return A {@link GalleryDirectory} for the given parameters
+	 * @throws IOException
+	 */
+	private GalleryDirectory createGalleryDirectory(String publicPath, File actualDir) throws IOException {
+		return createGalleryDirectory(publicPath, actualDir, actualDir.getName());
 	}
 
 	/**
