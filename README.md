@@ -15,6 +15,8 @@ For a demo showing the optional UI (see below) on the same instance:
 
 http://ec2-54-206-126-4.ap-southeast-2.compute.amazonaws.com/gallery/
 
+Please note that the demo instance is not using HTTPS - this is **not** recommended for a real deployment.
+
 # Optional UI
 There is a separate project that adds a UI on top of the REST webapp, see https://github.com/henkexbg/gallery.
 
