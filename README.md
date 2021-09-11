@@ -6,8 +6,19 @@ To be able to safely and easily make your images and videos available to yoursel
 
 There was also a clear intent with separation of concern in excluding any UI from this artifact - the services of this webapp can easily be consumed by any other application (see sample requests/responses below).
 
+# Demo
+http://ec2-54-206-126-4.ap-southeast-2.compute.amazonaws.com/gallery/service
+ - Username: `demo`
+ - Password: `demo-password`
+
+For a demo showing the optional UI (see below) on the same instance:
+
+http://ec2-54-206-126-4.ap-southeast-2.compute.amazonaws.com/gallery/
+
+Please note that the demo instance is not using HTTPS - this is **not** recommended for a real deployment.
+
 # Optional UI
-There is a separate project that adds a UI on top of the REST webapp, see https://github.com/henkexbg/gallery.
+There is a separate project called Jarea Gallery that adds a React UI on top of the REST webapp, see https://github.com/henkexbg/jarea-gallery. That repository also contains build scripts for bundling the REST application with the UI into one deployable application.
 
 # Features
 - REST API for browsing directories
@@ -51,9 +62,6 @@ As part of the response when requesting Best the image **best-image-ever.jpg** w
 To retrieve the actual image, perform the replacement as mentioned above. For example, in order to get the fullhd version, the URL requested should be `[ENDPOINT]/gallery/image/fullhd/Best/best-image-ever.jpg`
 
 All images that have been resized and videos that have been transcoded are stored under a resized directory.
-
-# Demo
-Demo not available at the moment. Please see examples of API use further down.
 
 # Prerequisites
 - Java 14
