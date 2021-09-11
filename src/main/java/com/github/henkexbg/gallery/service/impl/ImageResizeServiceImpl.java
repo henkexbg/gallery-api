@@ -60,12 +60,13 @@ public class ImageResizeServiceImpl implements ImageResizeService {
 		long startTime = System.currentTimeMillis();
 		InputStream is = new BufferedInputStream(new FileInputStream(originalImageFile));
 		BufferedImage originalImage = ImageIO.read(is);
+		is.close();
 		if (originalImage == null) {
 			String errorMessage = String.format("File %s could not be parsed as an image",
 					originalImageFile.getCanonicalPath());
 			LOG.error(errorMessage);
+			throw new IOException(errorMessage);
 		}
-		is.close();
 		int origWidth = originalImage.getWidth();
 		int origHeight = originalImage.getHeight();
 		LOG.debug("Original size of image - width: {}, height={}", origWidth, height);
