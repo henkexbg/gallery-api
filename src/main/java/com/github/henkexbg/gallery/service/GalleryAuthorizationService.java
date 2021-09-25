@@ -22,7 +22,11 @@
 package com.github.henkexbg.gallery.service;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.Map;
+
+import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 
 /**
  * Service for authorization-related functionality, mostly around determining
@@ -35,42 +39,45 @@ import java.util.Map;
  */
 public interface GalleryAuthorizationService {
 
-    /**
-     * Retrieves the public root paths for the current user. Any of these paths
-     * is allowed to be accessed, though there is of course no guarantee the
-     * root path will contain anything.
-     * 
-     * @return A Map where the key is a descriptive name, and the value is the
-     *         actual directory to which the user has access.
-     */
-    Map<String, File> getRootPathsForCurrentUser();
+	/**
+	 * Retrieves the public root paths for the current user. Any of these paths is
+	 * allowed to be accessed, though there is of course no guarantee the root path
+	 * will contain anything.
+	 * 
+	 * @return A Map where the key is a descriptive name, and the value is the
+	 *         actual directory to which the user has access.
+	 */
+	Map<String, File> getRootPathsForCurrentUser();
 
-    /**
-     * Verifies whether a certain file is allowed to be accessed by the current
-     * user. Essentially this method should return true if the file is a child
-     * (direct or indirect) or any of the root paths returned by
-     * {@link #getRootPathsForCurrentUser()}
-     * 
-     * @param fileToCheck
-     *            File to check
-     * @return True if current user is allowed to access file.
-     */
-    boolean isAllowed(File fileToCheck);
+	/**
+	 * Looks up the actual file based on the public path. This method also checks
+	 * that the current user has right to access the file in question. It does
+	 * however NOT check whether the file actually exists - as long as the path is
+	 * allowed according to the configuration, this method will return the
+	 * corresponding file.
+	 * 
+	 * @param publicPath
+	 * @return The file or directory as pointed to by the public path for the
+	 *         current user
+	 * @throws NotAllowedException If the provided public path does not resolve to a
+	 *                             real file that the current user has access to
+	 * @throws IOException         If any more general errors occurs
+	 */
+	File getRealFileOrDir(String publicPath) throws IOException, FileNotFoundException, NotAllowedException;
 
-    /**
-     * The admin user is required for certain management tasks (for instance
-     * cronjobs). This user should have all the rights of all the users. This
-     * methods logs that user in. <br>
-     * NOTE: It is probably a good idea never to call these methods from a
-     * thread that also handles requests! Though it would be implementation
-     * dependent, it does sound a bit risky no matter how you twist it. Just
-     * saying.
-     */
-    void loginAdminUser();
+	/**
+	 * The admin user is required for certain management tasks (for instance
+	 * cronjobs). This user should have all the rights of all the users. This
+	 * methods logs that user in. <br>
+	 * NOTE: It is probably a good idea never to call these methods from a thread
+	 * that also handles requests! Though it would be implementation dependent, it
+	 * does sound a bit risky no matter how you twist it. Just saying.
+	 */
+	void loginAdminUser();
 
-    /**
-     * Logs out the admin user.
-     */
-    void logoutAdminUser();
+	/**
+	 * Logs out the admin user.
+	 */
+	void logoutAdminUser();
 
 }

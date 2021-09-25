@@ -24,6 +24,7 @@ package com.github.henkexbg.gallery.service.impl;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -32,11 +33,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.github.henkexbg.gallery.bean.GalleryRootDir;
 import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
 import com.github.henkexbg.gallery.service.GalleryRootDirChangeListener;
-import com.github.henkexbg.gallery.bean.GalleryRootDir;
+import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 
 /**
  * Implementation of the {@link GalleryAuthorizationService} using Spring
@@ -51,140 +54,165 @@ import com.github.henkexbg.gallery.bean.GalleryRootDir;
  */
 public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationService, GalleryRootDirChangeListener {
 
-    private final Logger LOG = LoggerFactory.getLogger(getClass());
+	private final Logger LOG = LoggerFactory.getLogger(getClass());
 
-    private Collection<GalleryRootDir> rootDirs;
+	/**
+	 * Contains a map where each key is a role, and each value is a map where the
+	 * key is the root path name and the value if the File of that root path
+	 */
+	Map<String, Map<String, File>> rootPathsPerRoleMap = new HashMap<>();
 
-    @Override
-    public boolean isAllowed(File fileToCheck) {
-        if (rootDirs == null || rootDirs.isEmpty()) {
-            return false;
-        }
-        try {
-            if (fileToCheck == null || StringUtils.isBlank(fileToCheck.getCanonicalPath())) {
-                return false;
-            }
-            String pathToCheck = fileToCheck.getCanonicalPath();
-            Collection<String> currentUserRoles = getCurrentUserRoles();
-            boolean allowed = isAllowed(currentUserRoles, rootDirs, pathToCheck);
-            LOG.debug("Is path {} allowed: {}", pathToCheck, allowed);
-            return allowed;
-        } catch (IOException ioe) {
-            return false;
-        }
-    }
+	@Override
+	public File getRealFileOrDir(String publicPath) throws IOException, NotAllowedException {
+		LOG.debug("Entering getRealFileOrDir(publicPath={})", publicPath);
+		if (StringUtils.isBlank(publicPath)) {
+			throw new NotAllowedException("Could not extract code from empty path!");
+		}
+		if (rootPathsPerRoleMap == null || rootPathsPerRoleMap.isEmpty()) {
+			throw new NotAllowedException("Public path " + publicPath + " not allowed!");
+		}
+		int relativePathStartIndex = publicPath.indexOf("/");
+		String baseDirCode = (relativePathStartIndex < 0) ? publicPath
+				: publicPath.substring(0, relativePathStartIndex);
+		LOG.debug("baseDirCode: {}", baseDirCode);
 
-    @Override
-    public void setRootDirs(Collection<GalleryRootDir> rootDirs) {
-        LOG.debug("Updating rootDirs");
-        this.rootDirs = rootDirs;
-    }
+		Collection<String> currentUserRoles = getCurrentUserRoles();
 
-    @Override
-    public Map<String, File> getRootPathsForCurrentUser() {
-        Collection<String> currentUserRoles = getCurrentUserRoles();
-        Map<String, File> rootPaths = getRootPathsForRoles(currentUserRoles, rootDirs);
-        LOG.debug("Root paths: {}", rootPaths);
-        return rootPaths;
-    }
+		File baseDir = null;
+		for (String oneRole : currentUserRoles) {
+			Map<String, File> rootPathsOneRoleMap = rootPathsPerRoleMap.get(oneRole);
+			if (rootPathsOneRoleMap != null) {
+				baseDir = rootPathsOneRoleMap.get(baseDirCode);
+			}
+			if (baseDir != null) {
+				break;
+			}
+		}
+		if (baseDir == null) {
+			String errorMessage = String.format("Could not find basedir for base dir code {}", baseDirCode);
+			LOG.error(errorMessage);
+			throw new NotAllowedException(errorMessage);
+		}
+		File file = null;
+		if (relativePathStartIndex >= 0) {
+			String relativePath = publicPath.substring(relativePathStartIndex, publicPath.length());
+			LOG.debug("Relative path: {}", relativePath);
+			file = new File(baseDir, relativePath);
+			if (!isCanonicalChild(baseDir, file)) {
+				throw new NotAllowedException("File " + file + " not allowed!");
+			}
 
-    private Map<String, File> getRootPathsForRoles(Collection<String> roles, Collection<GalleryRootDir> rootDirs) {
-        Map<String, File> rootPathsForRoles = rootDirs.stream().filter(r -> roles.contains(r.getRole()))
-                .collect(Collectors.toMap(GalleryRootDir::getName, GalleryRootDir::getDir));
-        LOG.debug("Root paths for roles {}: {}", roles, rootPathsForRoles);
-        return rootPathsForRoles;
-    }
+		} else {
+			// No relative path - just use baseDir itself
+			file = baseDir;
+		}
+		return file;
+	}
 
-    private boolean isAllowed(Collection<String> roles, Collection<GalleryRootDir> rootDirs, String pathToCheck) {
-        Map<String, File> rootPathsForRoles = getRootPathsForRoles(roles, rootDirs);
-        return rootPathsForRoles.values().stream().anyMatch(f -> stringStartsWithFile(pathToCheck, f));
-    }
+	/**
+	 * Internally converts the root dirs to a more efficient lookup structure and
+	 * stores it in {@link #rootPathsPerRoleMap}
+	 */
+	@Override
+	public void setRootDirs(Collection<GalleryRootDir> rootDirs) {
+		LOG.debug("Updating rootDirs");
+		Collection<String> allRoles = rootDirs.stream().map(r -> r.getRole()).collect(Collectors.toSet());
+		Map<String, Map<String, File>> rootPathsPerRoleMap = new HashMap<>();
+		for (String oneRole : allRoles) {
+			Map<String, File> rootPathsForRoles = rootDirs.stream().filter(rd -> oneRole.equals(rd.getRole()))
+					.collect(Collectors.toMap(GalleryRootDir::getName, GalleryRootDir::getDir, (dir1, dir2) -> {
+						return dir1;
+					}));
+			rootPathsPerRoleMap.put(oneRole, rootPathsForRoles);
+		}
+		this.rootPathsPerRoleMap = rootPathsPerRoleMap;
+	}
 
-    private boolean stringStartsWithFile(String string, File f) {
-        try {
-            return string.startsWith(f.getCanonicalPath());
-        } catch (IOException ioe) {
-            return false;
-        }
-    }
+	@Override
+	public Map<String, File> getRootPathsForCurrentUser() {
+		Collection<String> currentUserRoles = getCurrentUserRoles();
+		Map<String, File> rootPathsForCurrentUser = new HashMap<>();
+		rootPathsPerRoleMap.forEach((role, rps) -> {
+			if (currentUserRoles.contains(role)) {
+				rootPathsForCurrentUser.putAll(rps);
+			}
+		});
+		return rootPathsForCurrentUser;
+	}
 
-    private Collection<String> getCurrentUserRoles() {
-        Collection<? extends GrantedAuthority> authorities = SecurityContextHolder.getContext().getAuthentication().getAuthorities();
-        Collection<String> currentUserRoles = authorities.stream().map(e -> e.getAuthority()).collect(Collectors.toSet());
-        LOG.debug("Roles for current user: {}", currentUserRoles);
-        return currentUserRoles;
-    }
+	/**
+	 * Simpler helper to validate that the child is indeed a canonical child of the
+	 * parent file.
+	 * 
+	 * @param parent Supposed parent file
+	 * @param child  Supposed child file
+	 * @return True if child is a proper canonical child of parent
+	 */
+	private boolean isCanonicalChild(File parent, File child) {
+		try {
+			return child.getCanonicalPath().startsWith(parent.getCanonicalPath());
+		} catch (IOException ioe) {
+			return false;
+		}
+	}
 
-    @Override
-    public void loginAdminUser() {
-        Authentication auth = new Authentication() {
+	private Collection<String> getCurrentUserRoles() {
+		Collection<? extends GrantedAuthority> authorities = SecurityContextHolder.getContext().getAuthentication()
+				.getAuthorities();
+		Collection<String> currentUserRoles = authorities.stream().map(e -> e.getAuthority())
+				.collect(Collectors.toSet());
+		LOG.debug("Roles for current user: {}", currentUserRoles);
+		return currentUserRoles;
+	}
 
-            private static final long serialVersionUID = -7444637463199474476L;
+	@Override
+	public void loginAdminUser() {
+		Authentication auth = new Authentication() {
 
-            @Override
-            public String getName() {
-                return "admin";
-            }
+			private static final long serialVersionUID = -7444637463199474476L;
 
-            @Override
-            public Collection<? extends GrantedAuthority> getAuthorities() {
-                return rootDirs.stream().map(rd -> new SimpleGrantedAuthority(rd.getRole())).collect(Collectors.toList());
-            }
+			@Override
+			public String getName() {
+				return "admin";
+			}
 
-            @Override
-            public Object getCredentials() {
-                return null;
-            }
+			@Override
+			public Collection<? extends GrantedAuthority> getAuthorities() {
+				return rootPathsPerRoleMap.keySet().stream().map(role -> new SimpleGrantedAuthority(role))
+						.collect(Collectors.toList());
+			}
 
-            @Override
-            public Object getDetails() {
-                return null;
-            }
+			@Override
+			public Object getCredentials() {
+				return null;
+			}
 
-            @Override
-            public Object getPrincipal() {
-                return "admin";
-            }
+			@Override
+			public Object getDetails() {
+				return null;
+			}
 
-            @Override
-            public boolean isAuthenticated() {
-                return true;
-            }
+			@Override
+			public Object getPrincipal() {
+				return "admin";
+			}
 
-            @Override
-            public void setAuthenticated(boolean arg0) throws IllegalArgumentException {
-            }
+			@Override
+			public boolean isAuthenticated() {
+				return true;
+			}
 
-        };
-        SecurityContextHolder.getContext().setAuthentication(auth);
-    }
+			@Override
+			public void setAuthenticated(boolean arg0) throws IllegalArgumentException {
+			}
 
-    @Override
-    public void logoutAdminUser() {
-        SecurityContextHolder.clearContext();
-    }
+		};
+		SecurityContextHolder.getContext().setAuthentication(auth);
+	}
 
-    /**
-     * Anonymous class for returning a string as an authority.
-     * 
-     * @author Henrik Bjerne
-     *
-     */
-    private class SimpleGrantedAuthority implements GrantedAuthority {
-
-        private static final long serialVersionUID = -3092055743053594017L;
-
-        public SimpleGrantedAuthority(String role) {
-            this.role = role;
-        }
-
-        private String role;
-
-        @Override
-        public String getAuthority() {
-            return role;
-        }
-
-    }
+	@Override
+	public void logoutAdminUser() {
+		SecurityContextHolder.clearContext();
+	}
 
 }

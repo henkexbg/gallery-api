@@ -64,8 +64,7 @@ public class GalleryServiceImplTest {
         galleryService.setGalleryAuthorizationService(galleryAuthorizationService);
         galleryService.setImageResizeService(imageResizeService);
         galleryService.setAllowedFileExtensions(allowedFileExtensions);
-        when(galleryAuthorizationService.getRootPathsForCurrentUser()).thenReturn(rootPaths);
-        when(galleryAuthorizationService.isAllowed(any())).thenReturn(true);
+        when(galleryAuthorizationService.getRootPathsForCurrentUser()).thenReturn(rootPaths);        
         if (!TEST_ORIGINAL_IMAGE.exists()) {
             TEST_ORIGINAL_IMAGE.createNewFile();
         }

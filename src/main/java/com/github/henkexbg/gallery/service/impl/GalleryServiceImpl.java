@@ -313,34 +313,7 @@ public class GalleryServiceImpl implements GalleryService {
 	 */
 	private File getRealFileOrDir(String publicPath) throws IOException, FileNotFoundException, NotAllowedException {
 		LOG.debug("Entering getRealFileOrDir(publicPath={})", publicPath);
-		if (StringUtils.isBlank(publicPath)) {
-			throw new FileNotFoundException("Could not extract code from empty path!");
-		}
-		int index = publicPath.indexOf("/");
-		if (index < 0) {
-			index = publicPath.length();
-		}
-		String baseDirCode = publicPath.substring(0, index);
-		LOG.debug("baseDirCode: {}", baseDirCode);
-		File baseDir = galleryAuthorizationService.getRootPathsForCurrentUser().get(baseDirCode);
-		if (baseDir == null) {
-			String errorMessage = String.format("Could not find basedir for base dir code {}", baseDirCode);
-			LOG.error(errorMessage);
-			throw new FileNotFoundException(errorMessage);
-		}
-		File file = null;
-		String relativePath = publicPath.substring(index, publicPath.length());
-		LOG.debug("Relative path: {}", relativePath);
-		if (StringUtils.isNotBlank(relativePath)) {
-			file = new File(baseDir, relativePath);
-			if (!galleryAuthorizationService.isAllowed(file)) {
-				throw new NotAllowedException("File " + file + " not allowed!");
-			}
-		} else {
-			// Don't need to check allowed on baseDir as this was just returned
-			// from the authorization service.
-			file = baseDir;
-		}
+		File file = galleryAuthorizationService.getRealFileOrDir(publicPath);
 		if (!file.exists()) {
 			throw new FileNotFoundException("File not found!");
 		}
