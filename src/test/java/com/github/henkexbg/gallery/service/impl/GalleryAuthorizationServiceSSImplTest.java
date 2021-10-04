@@ -42,7 +42,7 @@ import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 
 /**
  * Tests the authorization service. The Spring application context is loaded to
- * get Spring Security to initialize
+ * get Spring Security to initialize.
  * 
  * @author Henrik
  *
