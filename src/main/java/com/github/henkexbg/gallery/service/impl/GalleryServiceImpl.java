@@ -132,12 +132,18 @@ public class GalleryServiceImpl implements GalleryService {
 	public List<GalleryDirectory> getRootDirectories() throws IOException, NotAllowedException {
 		List<String> rootDirCodes = new ArrayList<String>(
 				galleryAuthorizationService.getRootPathsForCurrentUser().keySet());
-		List<GalleryDirectory> galleryDirectories = new ArrayList<>(rootDirCodes.size());
-		Collections.sort(rootDirCodes, String.CASE_INSENSITIVE_ORDER);
-		for (String oneRootDirCode : rootDirCodes) {
-			File oneRootDir = getRealFileOrDir(oneRootDirCode);
-			galleryDirectories.add(createGalleryDirectory(oneRootDirCode, oneRootDir, oneRootDirCode));
-		}
+		// Let's do a parallel stream as the gallery directory creation may generate
+		// directory images, which is quite demanding
+		List<GalleryDirectory> galleryDirectories = rootDirCodes.parallelStream().map(r -> {
+			try {
+				File oneRootDir = getRealFileOrDir(r);
+				return createGalleryDirectory(r, oneRootDir, r);
+			} catch (IOException | NotAllowedException e) {
+				LOG.error("Error when generating root dir {}. Will skip. Exception: {}", r, e);
+				return null;
+			}
+		}).filter(gd -> gd != null).sorted((gd1, gd2) -> gd1.getName().compareTo(gd2.getName()))
+				.collect(Collectors.toList());
 		return galleryDirectories;
 	}
 
@@ -207,17 +213,18 @@ public class GalleryServiceImpl implements GalleryService {
 	@Override
 	public List<GalleryDirectory> getDirectories(String publicPath) throws IOException, NotAllowedException {
 		File dir = getRealFileOrDir(publicPath);
-		List<GalleryDirectory> galleryDirectories = new ArrayList<>();
 		if (dir.isDirectory()) {
 			List<File> directories = Arrays.asList(dir.listFiles(File::isDirectory));
 			LOG.debug("Found {} directories for path {}", directories.size(), publicPath);
-			Collections.sort(directories, NameFileComparator.NAME_INSENSITIVE_COMPARATOR);
-			for (File oneDir : directories) {
-				String oneDirPublicPath = buildPublicPathForFileInPublicDir(publicPath, oneDir);
-				galleryDirectories.add(createGalleryDirectory(oneDirPublicPath, oneDir));
-			}
+			// Let's do a parallel stream as the gallery directory creation may generate
+			// directory images, which is quite demanding
+			List<GalleryDirectory> galleryDirectories = directories.parallelStream().map(d -> {
+				String oneDirPublicPath = buildPublicPathForFileInPublicDir(publicPath, d);
+				return createGalleryDirectory(oneDirPublicPath, d);
+			}).sorted((gd1, gd2) -> gd1.getName().compareTo(gd2.getName())).collect(Collectors.toList());
+			return galleryDirectories;
 		}
-		return galleryDirectories;
+		return Collections.emptyList();
 	}
 
 	@Override
@@ -354,31 +361,34 @@ public class GalleryServiceImpl implements GalleryService {
 	 * 
 	 * @param publicPath Public path.
 	 * @param actualDir  Directory.
-	 * @param dirName Name of gallery directory to be created
+	 * @param dirName    Name of gallery directory to be created
 	 * @return A {@link GalleryDirectory} for the given parameters
-	 * @throws IOException
 	 */
-	private GalleryDirectory createGalleryDirectory(String publicPath, File actualDir, String dirName) throws IOException {
+	private GalleryDirectory createGalleryDirectory(String publicPath, File actualDir, String dirName) {
 		GalleryDirectory galleryDirectory = new GalleryDirectory();
 		galleryDirectory.setPublicPath(publicPath);
 		galleryDirectory.setName(dirName);
-		File directoryImage = getDirectoryImage(actualDir);
-		if (directoryImage != null) {
-			// Use the public path of the directory, and combine it with the image
-			galleryDirectory.setImage(createGalleryFile(publicPath, directoryImage));
+		try {
+			File directoryImage = getDirectoryImage(actualDir);
+			if (directoryImage != null) {
+				// Use the public path of the directory, and combine it with the image
+				galleryDirectory.setImage(createGalleryFile(publicPath, directoryImage));
+			}
+		} catch (IOException ioe) {
+			LOG.error("Could not generate directory image for {}", actualDir);
 		}
 		return galleryDirectory;
 	}
-	
+
 	/**
-	 * As {@link #createGalleryDirectory(String, File, String)}, but uses the directory name as gallery directory name.
+	 * As {@link #createGalleryDirectory(String, File, String)}, but uses the
+	 * directory name as gallery directory name.
 	 * 
 	 * @param publicPath Public path.
 	 * @param actualDir  Directory.
 	 * @return A {@link GalleryDirectory} for the given parameters
-	 * @throws IOException
 	 */
-	private GalleryDirectory createGalleryDirectory(String publicPath, File actualDir) throws IOException {
+	private GalleryDirectory createGalleryDirectory(String publicPath, File actualDir) {
 		return createGalleryDirectory(publicPath, actualDir, actualDir.getName());
 	}
 
@@ -403,9 +413,8 @@ public class GalleryServiceImpl implements GalleryService {
 						.lastModified();
 				if (directoryImage.exists() && newestSourceImageTimestamp < directoryImage.lastModified()) {
 					// Extra optimization. If the directory image has expired, but the composite
-					// images are not newer
-					// than the current directory image, just update the last modified on the
-					// directory image
+					// images are not newer than the current directory image, just update the last
+					// modified timestamp on the directory image
 					LOG.debug("Keeping expired directory image, renewing timestamp");
 					directoryImage.setLastModified(System.currentTimeMillis());
 				} else {
@@ -423,8 +432,7 @@ public class GalleryServiceImpl implements GalleryService {
 				}
 			} else {
 				// Create empty file so that we can check the timestamp towards it and not
-				// always try to generate a new
-				// file for directories without images.
+				// always try to generate a new file for directories without images
 				directoryImage.createNewFile();
 			}
 		}

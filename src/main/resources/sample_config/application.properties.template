@@ -101,6 +101,10 @@ gallery.imageResizing.directoryImageMaxAgeMinutes=1440
 # under other domains.
 gallery.web.allowedOrigins=*
 
+# Sets the cache header for images and videos. All service requests returning
+# JSON are non-cached.
+gallery.mediaResourcesCacheHeader=private, no-store, max-age=31536000
+
 ###############################################################################
 # SPRING BOOT CONFIG
 ###############################################################################

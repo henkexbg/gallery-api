@@ -9,6 +9,13 @@ import org.junit.Test;
 
 import com.github.henkexbg.gallery.service.impl.VideoConversionServiceImpl;
 
+/**
+ * The tests in this class are ignored per default. They work, but require
+ * instance-specific configuration and can not be enabled per default
+ * 
+ * @author Henrik
+ *
+ */
 public class VideoConversionServiceTest {
 
     @Test

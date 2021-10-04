@@ -40,6 +40,13 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import com.github.henkexbg.gallery.bean.GalleryRootDir;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 
+/**
+ * Tests the authorization service. The Spring application context is loaded to
+ * get Spring Security to initialize
+ * 
+ * @author Henrik
+ *
+ */
 @RunWith(SpringJUnit4ClassRunner.class)
 public class GalleryAuthorizationServiceSSImplTest {
 
@@ -158,24 +165,24 @@ public class GalleryAuthorizationServiceSSImplTest {
 		File realFileOrDir = galleryAuthorizationServiceSSImpl.getRealFileOrDir(grd1.getName());
 		assertEquals(grd1.getDir(), realFileOrDir, "Correct file not returned");
 	}
-	
+
 	@Test
 	@WithMockUser(username = "test", roles = { "USER", "TEST" })
 	public void testGetRealFileOrDirConflictingRootPaths() throws Exception {
 		List<GalleryRootDir> grds = new ArrayList<>();
-		
+
 		GalleryRootDir grd1 = new GalleryRootDir();
 		grd1.setDir(new File("/test/test1"));
 		grd1.setName("test1-rd");
 		grd1.setRole("ROLE_TEST");
 		grds.add(grd1);
-		
+
 		GalleryRootDir grd2 = new GalleryRootDir();
 		grd2.setDir(new File("/test/test2"));
 		grd2.setName("test1-rd");
 		grd2.setRole("ROLE_USER");
 		grds.add(grd2);
-		
+
 		galleryAuthorizationServiceSSImpl.setRootDirs(grds);
 		File realFileOrDir = galleryAuthorizationServiceSSImpl.getRealFileOrDir(grd1.getName());
 		assertEquals(grd1.getDir(), realFileOrDir, "Correct file not returned");

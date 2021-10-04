@@ -93,6 +93,8 @@ public class GalleryController {
 	private boolean allowCustomImageSizes = false;
 
 	private boolean separateImagesAndVideos = false;
+	
+	private String mediaResourcesCacheHeader;
 
 	@Autowired
 	public void setGalleryService(GalleryService galleryService) {
@@ -112,6 +114,11 @@ public class GalleryController {
 	@Value("${gallery.separateImagesAndVideos}")
 	public void setSeparateImagesAndVideos(boolean separateImagesAndVideos) {
 		this.separateImagesAndVideos = separateImagesAndVideos;
+	}
+	
+	@Value("${gallery.mediaResourcesCacheHeader}")
+	public void setMediaResourcesCacheHeader(String mediaResourcesCacheHeader) {
+		this.mediaResourcesCacheHeader = mediaResourcesCacheHeader;
 	}
 
 	/**
@@ -348,6 +355,7 @@ public class GalleryController {
 		InputStream is = new BufferedInputStream(boundedInputStream, 65536);
 		InputStreamResource inputStreamResource = new InputStreamResource(is);
 		HttpHeaders responseHeaders = new HttpHeaders();
+		responseHeaders.setCacheControl(mediaResourcesCacheHeader);
 		responseHeaders.setContentLength(contentLength);
 		responseHeaders.setContentType(MediaType.valueOf(contentType));
 		responseHeaders.add(HttpHeaders.ACCEPT_RANGES, "bytes");
