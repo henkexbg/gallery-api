@@ -53,5 +53,18 @@
         <property name="blacklistedVideosFilePath" value="${gallery.videoConversion.blacklistedVideosFile}" />
     </bean>
 
-    
+
+    <bean id="filenameToSearchTermsStrategy" class="com.github.henkexbg.gallery.strategy.impl.FilenameToSearchTermsStrategyImpl" />
+
+    <bean id="gallerySearchService" class="com.github.henkexbg.gallery.service.impl.GallerySearchServiceImpl">
+        <property name="galleryAuthorizationService" ref="galleryAuthorizationService" />
+        <property name="galleryService" ref="galleryService" />
+        <property name="filenameToSearchTermsStrategy" ref="filenameToSearchTermsStrategy" />
+        <property name="dbHost" value="${gallery.arangodb.host}" />
+        <property name="dbPort" value="${gallery.arangodb.port}" />
+        <property name="dbName" value="${gallery.arangodb.database}" />
+        <property name="dbUsername" value="${gallery.arangodb.username}" />
+        <property name="dbPassword" value="${gallery.arangodb.password}" />
+    </bean>
+
 </beans>
