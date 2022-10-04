@@ -50,8 +50,6 @@ public class ListingContext {
     
     private boolean allowCustomImageSizes;
     
-    private boolean separateImagesAndVideos = false;
-    
     private List<ImageFormat> imageFormats;
 
     public String getCurrentPathDisplay() {
@@ -117,14 +115,6 @@ public class ListingContext {
     public void setAllowCustomImageSizes(boolean allowCustomImageSizes) {
         this.allowCustomImageSizes = allowCustomImageSizes;
     }
-    
-    public boolean isSeparateImagesAndVideos() {
-		return separateImagesAndVideos;
-	}
-
-	public void setSeparateImagesAndVideos(boolean separateImagesAndVideos) {
-		this.separateImagesAndVideos = separateImagesAndVideos;
-	}
 
 	public List<ImageFormat> getImageFormats() {
         return imageFormats;

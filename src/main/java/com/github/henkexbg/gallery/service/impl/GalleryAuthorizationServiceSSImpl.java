@@ -58,7 +58,7 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
 
 	/**
 	 * Contains a map where each key is a role, and each value is a map where the
-	 * key is the root path name and the value if the File of that root path
+	 * key is the root path name and the value is the File of that root path
 	 */
 	Map<String, Map<String, File>> rootPathsPerRoleMap = new HashMap<>();
 

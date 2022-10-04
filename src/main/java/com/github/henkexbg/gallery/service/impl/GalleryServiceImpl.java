@@ -318,7 +318,7 @@ public class GalleryServiceImpl implements GalleryService {
 	 * @throws FileNotFoundException If file cannot be found
 	 * @throws NotAllowedException   If explicitly not allowed to access file
 	 */
-	private File getRealFileOrDir(String publicPath) throws IOException, FileNotFoundException, NotAllowedException {
+	public File getRealFileOrDir(String publicPath) throws IOException, FileNotFoundException, NotAllowedException {
 		LOG.debug("Entering getRealFileOrDir(publicPath={})", publicPath);
 		File file = galleryAuthorizationService.getRealFileOrDir(publicPath);
 		if (!file.exists()) {
@@ -352,6 +352,43 @@ public class GalleryServiceImpl implements GalleryService {
 		String publicPath = separatorsToUnix(builder.toString());
 		LOG.debug("Actual file: {}, generated public path: {}", file, publicPath);
 		return publicPath;
+	}
+
+	@Override
+	public String getPublicPathFromRealFile(File file) throws IOException, NotAllowedException {
+		Map<String, File> rootPathsForCurrentUser = galleryAuthorizationService.getRootPathsForCurrentUser();
+		Optional<Entry<String, File>> optRootEntry = rootPathsForCurrentUser.entrySet().stream().filter(e -> {
+			try {
+				return file.getCanonicalPath().startsWith(e.getValue().getCanonicalPath());
+			} catch (IOException ioe) {
+				return false;
+			}
+		}).findAny();
+		if (optRootEntry.isEmpty()) {
+			throw new IOException(String.format("File %s could not be mapped to a public path", file.getCanonicalPath()));
+		}
+		Entry<String, File> rootEntry = optRootEntry.get();
+		return getPublicPathFromRealFile(rootEntry.getKey(), file);
+	}
+
+	@Override
+	public GalleryFile createGalleryFile(String publicPath, File actualFile) throws IOException {
+		String contentType = getContentType(actualFile);
+		GalleryFile galleryFile = new GalleryFile();
+		galleryFile.setPublicPath(publicPath);
+		galleryFile.setActualFile(actualFile);
+		galleryFile.setContentType(contentType);
+		if (isVideo(actualFile)) {
+			galleryFile.setType(GalleryFileType.VIDEO);
+		} else {
+			galleryFile.setType(GalleryFileType.IMAGE);
+		}
+		return galleryFile;
+	}
+
+	@Override
+	public boolean isAllowedExtension(File file) {
+		return allowedFileExtensions.contains(getExtension(file.getName()).toLowerCase());
 	}
 
 	/**
@@ -470,31 +507,6 @@ public class GalleryServiceImpl implements GalleryService {
 	}
 
 	/**
-	 * Creates a {@link GalleryFile} for the given file. Public path is required as
-	 * multiple public paths can point to the same actual file. This method should
-	 * always be given a file with an approved image or video, and never a
-	 * directory.
-	 * 
-	 * @param publicPath Public path.
-	 * @param actualFile File to convert to {@link GalleryFile}.
-	 * @return A {@link GalleryFile} based on the given parameters
-	 * @throws IOException
-	 */
-	private GalleryFile createGalleryFile(String publicPath, File actualFile) throws IOException {
-		String contentType = getContentType(actualFile);
-		GalleryFile galleryFile = new GalleryFile();
-		galleryFile.setPublicPath(publicPath);
-		galleryFile.setActualFile(actualFile);
-		galleryFile.setContentType(contentType);
-		if (isVideo(actualFile)) {
-			galleryFile.setType(GalleryFileType.VIDEO);
-		} else {
-			galleryFile.setType(GalleryFileType.IMAGE);
-		}
-		return galleryFile;
-	}
-
-	/**
 	 * Determines the content type for a given file. Will delegate to JVM/operating
 	 * system.
 	 * 
@@ -609,17 +621,6 @@ public class GalleryServiceImpl implements GalleryService {
 	 */
 	private String escapeFilePath(File file) throws IOException {
 		return file.getCanonicalPath().replace(":", "_");
-	}
-
-	/**
-	 * Checks whether file has an allowed file extension. Checked towards
-	 * {@link #allowedFileExtensions} in a case insensitive way.
-	 * 
-	 * @param file File
-	 * @return True if allowed
-	 */
-	private boolean isAllowedExtension(File file) {
-		return allowedFileExtensions.contains(getExtension(file.getName()).toLowerCase());
 	}
 
 	/**

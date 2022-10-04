@@ -21,6 +21,8 @@
  */
 package com.github.henkexbg.gallery.service;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.List;
 
@@ -152,5 +154,30 @@ public interface GalleryService {
      *             If the requested path is not allowed.
      */
     List<GalleryFile> getAllVideos() throws IOException, NotAllowedException;
+
+    File getRealFileOrDir(String publicPath) throws IOException, FileNotFoundException, NotAllowedException;
+
+    String getPublicPathFromRealFile(File file) throws IOException, NotAllowedException;
+
+    /**
+     * Creates a {@link GalleryFile} for the given file. Public path is required as
+     * multiple public paths can point to the same actual file. This method should
+     * always be given a file with an approved image or video, and never a
+     * directory.
+     *
+     * @param publicPath Public path.
+     * @param actualFile File to convert to {@link GalleryFile}.
+     * @return A {@link GalleryFile} based on the given parameters
+     * @throws IOException
+     */
+    GalleryFile createGalleryFile(String publicPath, File actualFile) throws IOException;
+
+    /**
+     * Checks whether file has an allowed file extension. Checked in a case insensitive way.
+     *
+     * @param file File
+     * @return True if allowed
+     */
+    boolean isAllowedExtension(File file);
 
 }

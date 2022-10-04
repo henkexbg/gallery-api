@@ -21,6 +21,8 @@
  */
 package com.github.henkexbg.gallery.controller.model;
 
+import java.time.Instant;
+
 /**
  * POJO defining one gallery file. This file will be sent back to the requesting
  * entity (of course with possible transformation to for instance JSON).
@@ -41,6 +43,8 @@ public class GalleryFileHolder {
     private String filename;
     
     private String name;
+
+    private Instant dateTaken;
 
     public String getFreeSizePath() {
         return freeSizePath;
@@ -90,4 +94,11 @@ public class GalleryFileHolder {
 		this.name = name;
 	}
 
+    public Instant getDateTaken() {
+        return dateTaken;
+    }
+
+    public void setDateTaken(Instant dateTaken) {
+        this.dateTaken = dateTaken;
+    }
 }

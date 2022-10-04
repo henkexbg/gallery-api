@@ -22,6 +22,7 @@
 package com.github.henkexbg.gallery.bean;
 
 import java.io.File;
+import java.time.Instant;
 
 /**
  * Simple POJO describing a gallery file. This links together a public path with
@@ -43,6 +44,8 @@ public class GalleryFile {
     private GalleryFileType type;
 
     private String contentType;
+
+    private Instant dateTaken;
 
     public String getPublicPath() {
         return publicPath;
@@ -76,4 +79,23 @@ public class GalleryFile {
         this.contentType = contentType;
     }
 
+
+    public Instant getDateTaken() {
+        return dateTaken;
+    }
+
+    public void setDateTaken(Instant dateTaken) {
+        this.dateTaken = dateTaken;
+    }
+
+    @Override
+    public String toString() {
+        return "GalleryFile{" +
+                "publicPath='" + publicPath + '\'' +
+                ", actualFile=" + actualFile +
+                ", type=" + type +
+                ", contentType='" + contentType + '\'' +
+                ", dateTaken=" + dateTaken +
+                '}';
+    }
 }

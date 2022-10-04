@@ -5,9 +5,8 @@ import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDatabase;
 import com.arangodb.entity.BaseDocument;
 import com.arangodb.util.MapBuilder;
-import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
-import com.github.henkexbg.gallery.service.GallerySearchService;
-import com.github.henkexbg.gallery.service.GalleryService;
+import com.github.henkexbg.gallery.bean.LocationResult;
+import com.github.henkexbg.gallery.service.*;
 import com.github.henkexbg.gallery.bean.GalleryFile;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 import com.github.henkexbg.gallery.strategy.FilenameToSearchTermsStrategy;
@@ -21,6 +20,8 @@ import org.springframework.beans.factory.annotation.Required;
 import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -49,6 +50,10 @@ public class GallerySearchServiceImpl implements GallerySearchService {
 
     private FilenameToSearchTermsStrategy filenameToSearchTermsStrategy;
 
+    private MetadataExtractionService metadataExtractionService;
+
+    private LocationMetadataService locationMetadataService;
+
     private String dbHost;
 
     private Integer dbPort;
@@ -72,6 +77,16 @@ public class GallerySearchServiceImpl implements GallerySearchService {
     @Required
     public void setFilenameToSearchTermsStrategy(FilenameToSearchTermsStrategy filenameToSearchTermsStrategy) {
         this.filenameToSearchTermsStrategy = filenameToSearchTermsStrategy;
+    }
+
+    @Required
+    public void setMetadataExtractionService(MetadataExtractionService metadataExtractionService) {
+        this.metadataExtractionService = metadataExtractionService;
+    }
+
+    @Required
+    public void setLocationMetadataService(LocationMetadataService locationMetadataService) {
+        this.locationMetadataService = locationMetadataService;
     }
 
     public void setDbHost(String dbHost) {
@@ -100,7 +115,7 @@ public class GallerySearchServiceImpl implements GallerySearchService {
     @PostConstruct
     public void init() {
         ArangoDB.Builder arangoDBBuilder = new ArangoDB.Builder().user(dbUsername).password(dbPassword);
-        if(StringUtils.isNotBlank(dbHost) && dbPort > 0) {
+        if (StringUtils.isNotBlank(dbHost) && dbPort > 0) {
             arangoDBBuilder.host(dbHost, dbPort);
         }
         db = arangoDBBuilder.build().db(dbName);
@@ -108,22 +123,37 @@ public class GallerySearchServiceImpl implements GallerySearchService {
 
     @Override
     public List<GalleryFile> search(String publicPath, String searchTerm) throws IOException, NotAllowedException {
-        File realFileOrDir = galleryService.getRealFileOrDir(publicPath);
-        String publicRoot = galleryService.getPublicRootFromRealFile(realFileOrDir);
-        String key = publicPath != null ? getKey(realFileOrDir.getCanonicalPath()) : ROOT_NODE_NAME;
+
+        File realFileOrDir = publicPath != null ? galleryAuthorizationService.getRealFileOrDir(publicPath) : null;
+
+//        String publicRoot = galleryService.getPublicRootFromRealFile(realFileOrDir);
+        String key = realFileOrDir != null ? getKey(realFileOrDir) : ROOT_NODE_NAME;
         LOG.debug("Performing search with publicPath={}, key={} searchTerm={}", publicPath, key, searchTerm);
         String startDoc = COLLECTION_NAME_GALLERY_IMAGES + "/" + key;
-        final String query = "FOR v, e, p IN 1..5 OUTBOUND @startDoc " + GRAPH_NAME + "\n" +
-                "FILTER v.type == 'FILE'\n" +
-                "LET fullArray = APPEND(FLATTEN(p.vertices[*].tags), FLATTEN(p.vertices[*].filenameParts))\n" +
-                "FILTER @searchTerms ALL IN fullArray\n" +
-                "RETURN DISTINCT v";
+//        final String query = "FOR v, e, p IN 1..5 OUTBOUND @startDoc " + GRAPH_NAME + "\n" +
+//                "FILTER v.type == 'FILE'\n" +
+//                "LET fullArray = APPEND(FLATTEN(p.vertices[*].tags), FLATTEN(p.vertices[*].filenameParts))\n" +
+//                "FILTER @searchTerms ALL IN fullArray\n" +
+//                "RETURN DISTINCT v";
+        final String query = """
+                FOR v, e, p IN 1..5 OUTBOUND @startDoc galleryImageOwns
+                  FILTER v.type == 'FILE'
+                  LET a1 = APPEND(FLATTEN(p.vertices[*].tags), v.tags)
+                  LET a2 = APPEND(a1, APPEND(FLATTEN(p.vertices[*].filenameParts), v.fileNameParts))
+                  LET a3 = APPEND(a2, FLATTEN(p.vertices[*].physicalLocations), v.physicalLocations)
+                  LET a4 = APPEND(a3, v.country)
+                  LET actualSearchArray = (FOR elem IN a4 RETURN LOWER(elem))
+                  LET lowerCaseSearchParams = (FOR elem IN @searchTerms RETURN LOWER(elem))
+                  FILTER lowerCaseSearchParams ALL IN actualSearchArray
+                  SORT v.dateTaken DESC
+                  RETURN v
+                """;
         LOG.debug("Final query: {}", query);
-        Map<String, Object> bindVars = new MapBuilder().put("startDoc", startDoc).put("searchTerms", searchTerm.split("\\s+")).get();
-        ArangoCursor<BaseDocument> cursor = db.query(query, bindVars, null, BaseDocument.class);
+        Map<String, Object> bindVars = new MapBuilder().put("startDoc", startDoc).put("searchTerms", Arrays.stream(searchTerm.split(",")).map(s -> s.trim()).toList()).get();
+        ArangoCursor<GalleryDocument> cursor = db.query(query, bindVars, null, GalleryDocument.class);
         List<GalleryFile> galleryFiles = new ArrayList<>();
         cursor.forEachRemaining(aDocument -> {
-            GalleryFile oneGalleryFile = createGalleryFileFromSearchResult(publicRoot, aDocument);
+            GalleryFile oneGalleryFile = createGalleryFileFromSearchResult(aDocument);
             if (oneGalleryFile != null) {
                 galleryFiles.add(oneGalleryFile);
             }
@@ -132,12 +162,17 @@ public class GallerySearchServiceImpl implements GallerySearchService {
         return galleryFiles;
     }
 
-    private GalleryFile createGalleryFileFromSearchResult(String publicRoot, BaseDocument baseDocument) {
+    private GalleryFile createGalleryFileFromSearchResult(GalleryDocument galleryDocument) {
         try {
-            String path = baseDocument.getProperties().get("path").toString();
+//            String path = galleryDocument.getPath().getProperties().get("path").toString();
+            String path = galleryDocument.getPath();
             File realFile = new File(path);
-            String publicPath = galleryService.getPublicPathFromRealFile(publicRoot, realFile);
-            return galleryService.createGalleryFile(publicPath, realFile);
+            String publicPath = galleryService.getPublicPathFromRealFile(realFile);
+            GalleryFile galleryFile = galleryService.createGalleryFile(publicPath, realFile);
+            if (galleryDocument.getDateTaken() != null) {
+                galleryFile.setDateTaken(Instant.parse(galleryDocument.getDateTaken()));
+            }
+            return galleryFile;
         } catch (NotAllowedException nae) {
             LOG.error("Not allowed to access search result file. Skipping file.", nae);
             return null;
@@ -157,7 +192,7 @@ public class GallerySearchServiceImpl implements GallerySearchService {
                 "LET fullArray = APPEND(FLATTEN(p.vertices[*].tags), FLATTEN(p.vertices[*].filenameParts)) \n" +
                 "FILTER ['Michael'] ALL IN fullArray \n" +
                 "RETURN DISTINCT v";
-        ArangoCursor<BaseDocument> cursor = db.query(query, null, null, BaseDocument.class);
+        ArangoCursor<GalleryDocument> cursor = db.query(query, null, null, GalleryDocument.class);
         cursor.forEachRemaining(aDocument -> {
             System.out.println("Key: " + aDocument.getKey());
         });
@@ -168,22 +203,22 @@ public class GallerySearchServiceImpl implements GallerySearchService {
             galleryAuthorizationService.loginAdminUser();
             Map<String, File> rootPathsForCurrentUser = galleryAuthorizationService.getRootPathsForCurrentUser();
             Collection<File> allDirectoriesCol = getAllDirectories(rootPathsForCurrentUser.values());
-            List<File> allDirectoriesSorted = allDirectoriesCol.stream().sorted((a,b) -> getPathNameNoException(a).length() - getPathNameNoException(b).length()).collect(Collectors.toList());
+            List<File> allDirectoriesSorted = allDirectoriesCol.stream().sorted((a, b) -> getPathNameNoException(a).length() - getPathNameNoException(b).length()).collect(Collectors.toList());
             Collection<File> rootDirectories = rootPathsForCurrentUser.values();
             for (File oneDirectory : allDirectoriesSorted) {
                 updateOneVertex(oneDirectory, VertexType.DIR);
-                String currentDirKey = getKey(oneDirectory.getCanonicalPath());
+                String currentDirKey = getKey(oneDirectory);
                 String parentDirKey = "-1";
                 if (rootDirectories.contains(oneDirectory)) {
                     parentDirKey = ROOT_NODE_NAME;
                 } else {
-                    parentDirKey = getKey(oneDirectory.getParentFile().getCanonicalPath());
+                    parentDirKey = getKey(oneDirectory.getParentFile());
                 }
                 updateOneEdge(currentDirKey, parentDirKey);
                 List<File> filesInDir = Arrays.stream(oneDirectory.listFiles()).filter(f -> f.isFile() && galleryService.isAllowedExtension(f)).collect(Collectors.toList());
                 for (File oneFile : filesInDir) {
                     updateOneVertex(oneFile, VertexType.FILE);
-                    updateOneEdge(getKey(oneFile.getCanonicalPath()), currentDirKey);
+                    updateOneEdge(getKey(oneFile), currentDirKey);
                 }
             }
         } catch (Exception e) {
@@ -196,7 +231,7 @@ public class GallerySearchServiceImpl implements GallerySearchService {
     private String getPathNameNoException(File f) {
         try {
             return f.getCanonicalPath();
-        } catch(IOException ioe) {
+        } catch (IOException ioe) {
             throw new RuntimeException("IOException when checking file path name. This should NOT happen!", ioe);
         }
     }
@@ -204,12 +239,32 @@ public class GallerySearchServiceImpl implements GallerySearchService {
     private void updateOneVertex(File file, VertexType vertexType) throws IOException {
         final String query =
                 "UPSERT {_key: @key}\n" +
-                        "INSERT {_key: @key, path: @path, type: @type, filenameParts: @filenameParts, tags: []} \n" +
-                        "UPDATE {path: @path, filenameParts: @filenameParts} IN " + COLLECTION_NAME_GALLERY_IMAGES;
-        String dirHash = getKey(file.getCanonicalPath());
-        Collection<String> filenameParts = filenameToSearchTermsStrategy.generateSearchTermsFromFilename(file.getName());
-        Map<String, Object> bindVars = new MapBuilder().put("key", dirHash).put("path", file.getCanonicalPath()).put("type", vertexType.name()).put("filenameParts", filenameParts).get();
-        ArangoCursor<BaseDocument> cursor = db.query(query, bindVars, null, BaseDocument.class);
+                        "INSERT {_key: @key, type: @type, tags: [], path: @path, dateTaken: @dateTaken, filenameParts: @filenameParts, gpsLatitude: @gpsLatitude, gpsLongitude: @gpsLongitude, physicalLocations: @physicalLocations, country: @country} \n" +
+                        "UPDATE {path: @path, dateTaken: @dateTaken, filenameParts: @filenameParts, gpsLatitude: @gpsLatitude, gpsLongitude: @gpsLongitude} IN " + COLLECTION_NAME_GALLERY_IMAGES;
+        String dirHash = getKey(file);
+        Collection<String> filenameParts = filenameToSearchTermsStrategy.generateSearchTermsFromFilename(file);
+        MetadataExtractionService.FileMetaData metadata = null;
+        LocationResult locationMetadata = null;
+        if (vertexType == VertexType.FILE) {
+            metadata = metadataExtractionService.getMetadata(file);
+            if (metadata.gpsLatitude() != null) {
+                locationMetadata = locationMetadataService.getLocationMetadata(metadata.gpsLatitude(), metadata.gpsLongitude());
+                String apa = "1";
+            }
+        }
+
+        Map<String, Object> bindVars = new MapBuilder()
+                .put("key", dirHash)
+                .put("path", file.getCanonicalPath())
+                .put("type", vertexType.name())
+                .put("filenameParts", filenameParts)
+                .put("dateTaken", metadata != null && metadata.dateTaken() != null ? metadata.dateTaken().toString() : null)
+                .put("gpsLatitude", metadata != null ? metadata.gpsLatitude() : null)
+                .put("gpsLongitude", metadata != null ? metadata.gpsLongitude() : null)
+                .put("physicalLocations", locationMetadata != null ? locationMetadata.getLocations() : Collections.EMPTY_LIST)
+                .put("country", locationMetadata != null && locationMetadata.getCountryCode() != null ? new Locale("", locationMetadata.getCountryCode()).getDisplayName() : null)
+                .get();
+        db.query(query, bindVars, null, BaseDocument.class);
     }
 
     private void updateOneEdge(String to, String from) throws IOException {
@@ -221,7 +276,7 @@ public class GallerySearchServiceImpl implements GallerySearchService {
         String fromString = COLLECTION_NAME_GALLERY_IMAGES + "/" + from;
 //        Map<String, Object> bindVars = new MapBuilder().put("from", path).put("to", path).put("COLLECTION_NAME_GALLERY_IMAGES", COLLECTION_NAME_GALLERY_IMAGES).get();
         Map<String, Object> bindVars = new MapBuilder().put("from", fromString).put("to", toString).get();
-        ArangoCursor<BaseDocument> cursor = db.query(query, bindVars, null, BaseDocument.class);
+        db.query(query, bindVars, null, BaseDocument.class);
     }
 
     private Collection<File> getAllDirectories(Collection<File> dirs) throws IOException, NotAllowedException {
@@ -231,8 +286,110 @@ public class GallerySearchServiceImpl implements GallerySearchService {
         return allDirectories;
     }
 
-    private String getKey(String originalString) {
-        return DigestUtils.sha256Hex(originalString);
+    private String getKey(File file) throws IOException {
+        return DigestUtils.sha256Hex(file.getCanonicalPath());
+    }
+
+    public static class GalleryDocument extends BaseDocument {
+
+        private enum FileType {
+            FILE,
+            DIRECTORY
+        }
+
+        private String key;
+
+        private String dateTaken;
+
+        private String path;
+
+        private FileType type;
+
+        private Double gpsLatitude;
+
+        private Double gpsLongitude;
+
+        private List<String> physicalLocations;
+
+        private String[] tags;
+
+        private String country;
+
+        public String getKey() {
+            return key;
+        }
+
+        public void setKey(String key) {
+            this.key = key;
+        }
+
+        public String getDateTaken() {
+            return dateTaken;
+        }
+
+        public void setDateTaken(String dateTaken) {
+            this.dateTaken = dateTaken;
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public void setPath(String path) {
+            this.path = path;
+        }
+
+        public FileType getType() {
+            return type;
+        }
+
+        public void setType(FileType type) {
+            this.type = type;
+        }
+
+        public Double getGpsLatitude() {
+            return gpsLatitude;
+        }
+
+        public void setGpsLatitude(Double gpsLatitude) {
+            this.gpsLatitude = gpsLatitude;
+        }
+
+        public Double getGpsLongitude() {
+            return gpsLongitude;
+        }
+
+        public void setGpsLongitude(Double gpsLongitude) {
+            this.gpsLongitude = gpsLongitude;
+        }
+
+        public List<String> getPhysicalLocations() {
+            return physicalLocations;
+        }
+
+        public void setPhysicalLocations(List<String> physicalLocations) {
+            this.physicalLocations = physicalLocations;
+        }
+
+        public String[] getTags() {
+            return tags;
+        }
+
+        public void setTags(String[] tags) {
+            this.tags = tags;
+        }
+
+        public String getCountry() {
+            return country;
+        }
+
+        public void setCountry(String country) {
+            this.country = country;
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        System.out.println(new GallerySearchServiceImpl().getKey(new File("/home/henrik/gallery-test-data/Bilder/2006-09 Graz")));
     }
 }
 

@@ -66,6 +66,7 @@ public class ImageResizeServiceImpl implements ImageResizeService {
 				newImageFile, width, height);
 		long startTime = System.currentTimeMillis();
 		BufferedImage originalImage = loadImage(originalImageFile);
+
 		int origWidth = originalImage.getWidth();
 		int origHeight = originalImage.getHeight();
 		LOG.debug("Original size of image - width: {}, height={}", origWidth, height);

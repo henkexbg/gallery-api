@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletRequest;
 
+import com.github.henkexbg.gallery.service.GallerySearchService;
 import org.apache.commons.io.input.BoundedInputStream;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -46,10 +47,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.AntPathMatcher;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.HandlerMapping;
 
@@ -90,15 +88,20 @@ public class GalleryController {
 
 	private GalleryService galleryService;
 
+	private GallerySearchService gallerySearchService;
+
 	private boolean allowCustomImageSizes = false;
 
-	private boolean separateImagesAndVideos = false;
-	
 	private String mediaResourcesCacheHeader;
 
 	@Autowired
 	public void setGalleryService(GalleryService galleryService) {
 		this.galleryService = galleryService;
+	}
+
+	@Autowired
+	public void setGallerySearchService(GallerySearchService gallerySearchService) {
+		this.gallerySearchService = gallerySearchService;
 	}
 
 	@Autowired
@@ -111,11 +114,6 @@ public class GalleryController {
 		this.allowCustomImageSizes = allowCustomImageSizes;
 	}
 
-	@Value("${gallery.separateImagesAndVideos}")
-	public void setSeparateImagesAndVideos(boolean separateImagesAndVideos) {
-		this.separateImagesAndVideos = separateImagesAndVideos;
-	}
-	
 	@Value("${gallery.mediaResourcesCacheHeader}")
 	public void setMediaResourcesCacheHeader(String mediaResourcesCacheHeader) {
 		this.mediaResourcesCacheHeader = mediaResourcesCacheHeader;
@@ -127,7 +125,6 @@ public class GalleryController {
 	 * sub-directories.
 	 *
 	 * @param servletRequest Servlet request
-	 * @param model          Spring web model
 	 *
 	 * @return A {@link ListingContext} instance.
 	 * @throws IOException Sub-types of this exception are thrown for different
@@ -135,44 +132,34 @@ public class GalleryController {
 	 *                     errors.
 	 */
 	@RequestMapping(value = SERVICE_PATH + "**", method = RequestMethod.GET)
-	public @ResponseBody ListingContext getListing(HttpServletRequest servletRequest, Model model) throws IOException {
+	public @ResponseBody ListingContext query(HttpServletRequest servletRequest, @RequestParam(required = false, value = "searchTerm") String searchTerm) throws Exception {
 		String path = extractPathFromPattern(servletRequest);
 		LOG.debug("Entering getListing(path={})", path);
 		String contextPath = servletRequest.getContextPath();
 		try {
 			ListingContext listingContext = new ListingContext();
 			listingContext.setAllowCustomImageSizes(allowCustomImageSizes);
-			listingContext.setSeparateImagesAndVideos(separateImagesAndVideos);
 			listingContext.setImageFormats(imageFormats);
 			listingContext.setVideoFormats(galleryService.getAvailableVideoModes());
+		if (StringUtils.isBlank(searchTerm)) {
 			if (StringUtils.isBlank(path)) {
 				listingContext.setDirectories(
 						convertToGalleryDirectoryHolders(contextPath, galleryService.getRootDirectories()));
 			} else {
 				listingContext.setCurrentPathDisplay(path);
-				listingContext.setPreviousPath(getPreviousPath(contextPath, path));
 				List<GalleryFile> directoryListing = galleryService.getDirectoryListingFiles(path);
 				if (directoryListing == null) {
 					throw new ResourceNotFoundException();
 				}
-				LOG.debug("{} media files found", directoryListing.size());
-				if (separateImagesAndVideos) {
-					List<GalleryFile> galleryImages = directoryListing.stream()
-							.filter(gi -> GalleryFileType.IMAGE.equals(gi.getType())).collect(Collectors.toList());
-					List<GalleryFileHolder> listing = convertToGalleryFileHolders(contextPath, galleryImages);
-					listingContext.setImages(listing);
-					List<GalleryFile> galleryVideos = directoryListing.stream()
-							.filter(gi -> GalleryFileType.VIDEO.equals(gi.getType())).collect(Collectors.toList());
-					List<GalleryFileHolder> videoHolders = convertToGalleryFileHolders(contextPath, galleryVideos);
-					listingContext.setVideos(videoHolders);
-
-				} else {
-					listingContext.setMedia(convertToGalleryFileHolders(contextPath, directoryListing));
-				}
+				listingContext.setMedia(convertToGalleryFileHolders(contextPath, directoryListing));
 				listingContext.setDirectories(
 						convertToGalleryDirectoryHolders(contextPath, galleryService.getDirectories(path)));
 			}
-			return listingContext;
+		} else {
+			listingContext.setMedia(convertToGalleryFileHolders(contextPath, gallerySearchService.search(path, searchTerm)));
+		}
+		LOG.debug("{} media files found", listingContext.getMedia() != null ? listingContext.getMedia().size() : 0);
+		return listingContext;
 		} catch (NotAllowedException noe) {
 			LOG.warn("Not allowing resource {}", path);
 			throw new ResourceNotFoundException();
@@ -187,6 +174,96 @@ public class GalleryController {
 			throw e;
 		}
 	}
+
+//	private @ResponseBody ListingContext getListing(String contextPath, String path) throws Exception {
+//			ListingContext listingContext = new ListingContext();
+//			listingContext.setAllowCustomImageSizes(allowCustomImageSizes);
+//			listingContext.setSeparateImagesAndVideos(separateImagesAndVideos);
+//			listingContext.setImageFormats(imageFormats);
+//			listingContext.setVideoFormats(galleryService.getAvailableVideoModes());
+//			if (StringUtils.isBlank(path)) {
+//				listingContext.setDirectories(
+//						convertToGalleryDirectoryHolders(contextPath, galleryService.getRootDirectories()));
+//			} else {
+//				listingContext.setCurrentPathDisplay(path);
+//				listingContext.setPreviousPath(getPreviousPath(contextPath, path));
+//				List<GalleryFile> directoryListing = galleryService.getDirectoryListingFiles(path);
+//				if (directoryListing == null) {
+//					throw new ResourceNotFoundException();
+//				}
+//				LOG.debug("{} media files found", directoryListing.size());
+//				if (separateImagesAndVideos) {
+//					List<GalleryFile> galleryImages = directoryListing.stream()
+//							.filter(gi -> GalleryFileType.IMAGE.equals(gi.getType())).collect(Collectors.toList());
+//					List<GalleryFileHolder> listing = convertToGalleryFileHolders(contextPath, galleryImages);
+//					listingContext.setImages(listing);
+//					List<GalleryFile> galleryVideos = directoryListing.stream()
+//							.filter(gi -> GalleryFileType.VIDEO.equals(gi.getType())).collect(Collectors.toList());
+//					List<GalleryFileHolder> videoHolders = convertToGalleryFileHolders(contextPath, galleryVideos);
+//					listingContext.setVideos(videoHolders);
+//
+//				} else {
+//					listingContext.setMedia(convertToGalleryFileHolders(contextPath, directoryListing));
+//				}
+//				listingContext.setDirectories(
+//						convertToGalleryDirectoryHolders(contextPath, galleryService.getDirectories(path)));
+//			}
+//			return listingContext;
+//		} catch (NotAllowedException noe) {
+//			LOG.warn("Not allowing resource {}", path);
+//			throw new ResourceNotFoundException();
+//		} catch (FileNotFoundException fnfe) {
+//			LOG.warn("Could not find resource {}", path);
+//			throw new ResourceNotFoundException();
+//		} catch (IOException ioe) {
+//			LOG.error("Error when calling getImage", ioe);
+//			throw ioe;
+//		} catch (Exception e) {
+//			LOG.error("Error when calling getListing", e);
+//			throw e;
+//		}
+//	}
+
+//	private List<GalleryFileHolder> search(String contextPath, String path, String searchTerm) throws Exception {
+//		LOG.debug("Entering search(searchTerm={}, path={})", searchTerm, path);
+////		try {
+//			List<GalleryFileHolder> galleryFileHolders = convertToGalleryFileHolders(contextPath, gallerySearchService.search(path, searchTerm));
+//			return galleryFileHolders;
+////		} catch (NotAllowedException noe) {
+////			LOG.warn("Not allowing resource {}", path);
+////			throw new ResourceNotFoundException();
+////		} catch (FileNotFoundException fnfe) {
+////			LOG.warn("Could not find resource {}", path);
+////			throw new ResourceNotFoundException();
+////		} catch (IOException ioe) {
+////			LOG.error("Error when calling getImage", ioe);
+////			throw ioe;
+////		}
+//	}
+
+
+//	@RequestMapping(value = SERVICE_PATH + "/search/**", method = RequestMethod.GET)
+//	public
+//	@ResponseBody
+//	List<GalleryFileHolder> search(WebRequest request, HttpServletRequest servletRequest,
+//								   @RequestParam(required = false, value = "searchTerm") String searchTerm) throws IOException {
+//		String path = extractPathFromPattern(servletRequest);
+//		LOG.debug("Entering search(searchTerm={}, path={})", searchTerm, path);
+//		String contextPath = servletRequest.getContextPath();
+//		try {
+//			List<GalleryFileHolder> galleryFileHolders = convertToGalleryFileHolders(contextPath, gallerySearchService.search(path, searchTerm));
+//			return galleryFileHolders;
+//		} catch (NotAllowedException noe) {
+//			LOG.warn("Not allowing resource {}", path);
+//			throw new ResourceNotFoundException();
+//		} catch (FileNotFoundException fnfe) {
+//			LOG.warn("Could not find resource {}", path);
+//			throw new ResourceNotFoundException();
+//		} catch (IOException ioe) {
+//			LOG.error("Error when calling getImage", ioe);
+//			throw ioe;
+//		}
+//	}
 
 	/**
 	 * Requests an image with the given {@link ImageFormat}.
@@ -404,27 +481,6 @@ public class GalleryController {
 	}
 
 	/**
-	 * Helper method that retrieves the URL to the previous path if available.
-	 * Previous in this case always means one step up in the hierarchy. It is
-	 * assumed that this is always a directory i.e. the URL will point to the
-	 * {@value #SERVICE_PATH} service.
-	 *
-	 * @param contextPath Webapp context path.
-	 * @param path        Webapp-specific path.
-	 * @return The previous path, or null.
-	 */
-	private String getPreviousPath(String contextPath, String path) {
-		if (StringUtils.isBlank(path)) {
-			return null;
-		}
-		int lastIndexOfSlash = path.lastIndexOf('/');
-		if (lastIndexOfSlash == -1) {
-			return null;
-		}
-		return contextPath + SERVICE_PATH + path.substring(0, lastIndexOfSlash);
-	}
-
-	/**
 	 * Converts a list of service layer {@link GalleryFile} objects to web model
 	 * {@link GalleryFileHolder} objects.
 	 *
@@ -459,6 +515,7 @@ public class GalleryController {
 			galleryFileHolder.setVideoPath(contextPath + "/video/{conversionFormat}/" + galleryFile.getPublicPath());
 		}
 		galleryFileHolder.setContentType(galleryFile.getContentType());
+		galleryFileHolder.setDateTaken(galleryFile.getDateTaken());
 		return galleryFileHolder;
 	}
 
