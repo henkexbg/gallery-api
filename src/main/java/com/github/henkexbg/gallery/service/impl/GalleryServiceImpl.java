@@ -132,9 +132,8 @@ public class GalleryServiceImpl implements GalleryService {
 	public List<GalleryDirectory> getRootDirectories() throws IOException, NotAllowedException {
 		List<String> rootDirCodes = new ArrayList<String>(
 				galleryAuthorizationService.getRootPathsForCurrentUser().keySet());
-		// Let's do a parallel stream as the gallery directory creation may generate
-		// directory images, which is quite demanding
-		List<GalleryDirectory> galleryDirectories = rootDirCodes.parallelStream().map(r -> {
+		// Unfortunately cannot use parallelstream as the security context gets lost in any child threads
+		List<GalleryDirectory> galleryDirectories = rootDirCodes.stream().map(r -> {
 			try {
 				File oneRootDir = getRealFileOrDir(r);
 				return createGalleryDirectory(r, oneRootDir, r);
@@ -216,9 +215,8 @@ public class GalleryServiceImpl implements GalleryService {
 		if (dir.isDirectory()) {
 			List<File> directories = Arrays.asList(dir.listFiles(File::isDirectory));
 			LOG.debug("Found {} directories for path {}", directories.size(), publicPath);
-			// Let's do a parallel stream as the gallery directory creation may generate
-			// directory images, which is quite demanding
-			List<GalleryDirectory> galleryDirectories = directories.parallelStream().map(d -> {
+			// Unfortunately cannot use parallelstream as the security context gets lost in any child threads
+			List<GalleryDirectory> galleryDirectories = directories.stream().map(d -> {
 				String oneDirPublicPath = buildPublicPathForFileInPublicDir(publicPath, d);
 				return createGalleryDirectory(oneDirPublicPath, d);
 			}).sorted((gd1, gd2) -> gd1.getName().compareTo(gd2.getName())).collect(Collectors.toList());
