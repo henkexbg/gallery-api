@@ -123,33 +123,34 @@ public class GallerySearchServiceImpl implements GallerySearchService {
 
     @Override
     public List<GalleryFile> search(String publicPath, String searchTerm) throws IOException, NotAllowedException {
+        List<String> startNodes = new ArrayList<>();
+        if (StringUtils.isNotBlank(publicPath)) {
+            startNodes.add(COLLECTION_NAME_GALLERY_IMAGES + "/" + getKey(galleryAuthorizationService.getRealFileOrDir(publicPath)));
+        } else {
+            List<File> rootDirsForUser = galleryAuthorizationService.getRootPathsForCurrentUser().entrySet().stream().map(e -> e.getValue()).collect(Collectors.toList());
+            for (File f : rootDirsForUser) {
+                startNodes.add(COLLECTION_NAME_GALLERY_IMAGES + "/" + getKey(f));
+            }
+        }
+        LOG.debug("Performing search with publicPath={}, startNodes={} searchTerm={}", publicPath, startNodes, searchTerm);
 
-        File realFileOrDir = publicPath != null ? galleryAuthorizationService.getRealFileOrDir(publicPath) : null;
-
-//        String publicRoot = galleryService.getPublicRootFromRealFile(realFileOrDir);
-        String key = realFileOrDir != null ? getKey(realFileOrDir) : ROOT_NODE_NAME;
-        LOG.debug("Performing search with publicPath={}, key={} searchTerm={}", publicPath, key, searchTerm);
-        String startDoc = COLLECTION_NAME_GALLERY_IMAGES + "/" + key;
-//        final String query = "FOR v, e, p IN 1..5 OUTBOUND @startDoc " + GRAPH_NAME + "\n" +
-//                "FILTER v.type == 'FILE'\n" +
-//                "LET fullArray = APPEND(FLATTEN(p.vertices[*].tags), FLATTEN(p.vertices[*].filenameParts))\n" +
-//                "FILTER @searchTerms ALL IN fullArray\n" +
-//                "RETURN DISTINCT v";
         final String query = """
-                FOR v, e, p IN 1..5 OUTBOUND @startDoc galleryImageOwns
-                  FILTER v.type == 'FILE'
-                  LET a1 = APPEND(FLATTEN(p.vertices[*].tags), v.tags)
-                  LET a2 = APPEND(a1, APPEND(FLATTEN(p.vertices[*].filenameParts), v.fileNameParts))
-                  LET a3 = APPEND(a2, FLATTEN(p.vertices[*].physicalLocations), v.physicalLocations)
-                  LET a4 = APPEND(a3, v.country)
-                  LET actualSearchArray = (FOR elem IN a4 RETURN LOWER(elem))
-                  LET lowerCaseSearchParams = (FOR elem IN @searchTerms RETURN LOWER(elem))
-                  FILTER lowerCaseSearchParams ALL IN actualSearchArray
-                  SORT v.dateTaken DESC
-                  RETURN v
+                FOR startNode in @startNodes
+                  FOR v, e, p IN 1..5 OUTBOUND startNode galleryImageOwns
+                    FILTER v.type == 'FILE'
+                    LET a1 = APPEND(FLATTEN(p.vertices[*].tags), v.tags)
+                    LET a2 = APPEND(a1, APPEND(FLATTEN(p.vertices[*].filenameParts), v.fileNameParts))
+                    LET a3 = APPEND(a2, FLATTEN(p.vertices[*].physicalLocations), v.physicalLocations)
+                    LET a4 = APPEND(a3, v.country)
+                    LET actualSearchArray = (FOR elem IN a4 RETURN LOWER(elem))
+                    LET lowerCaseSearchParams = (FOR elem IN @searchTerms RETURN LOWER(elem))
+                    FILTER lowerCaseSearchParams ALL IN actualSearchArray
+                    SORT v.dateTaken DESC
+                    RETURN v
                 """;
+
         LOG.debug("Final query: {}", query);
-        Map<String, Object> bindVars = new MapBuilder().put("startDoc", startDoc).put("searchTerms", Arrays.stream(searchTerm.split(",")).map(s -> s.trim()).toList()).get();
+        Map<String, Object> bindVars = new MapBuilder().put("startNodes", startNodes).put("searchTerms", Arrays.stream(searchTerm.split(",")).map(s -> s.trim()).toList()).get();
         ArangoCursor<GalleryDocument> cursor = db.query(query, bindVars, null, GalleryDocument.class);
         List<GalleryFile> galleryFiles = new ArrayList<>();
         cursor.forEachRemaining(aDocument -> {

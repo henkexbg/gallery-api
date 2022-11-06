@@ -83,4 +83,8 @@
         <property name="dbPassword" value="${gallery.arangodb.password}" />
     </bean>
 
+    <bean id="galleryFileWatcher" class="com.github.henkexbg.gallery.job.GalleryFileWatcher">
+        <property name="galleryAuthorizationService" ref="galleryAuthorizationService" />
+    </bean>
+
 </beans>
