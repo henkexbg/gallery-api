@@ -25,7 +25,7 @@ public class ImageMetadataExtractionServiceTest {
     public void testBasic3() throws IOException {
 //        MetadataExtractionServiceImpl metadataExtractionService = new MetadataExtractionServiceImpl();
 //        metadataExtractionService.init();
-        MetadataExtractionServiceImpl.FileMetaData metadata = metadataExtractionService.getMetadata(new File("/media/grejs/Bilder/2017-06-16 Vivid/20170616_181145.jpg"));
+        MetadataExtractionServiceImpl.FileMetaData metadata = metadataExtractionService.getMetadata(new File("/media/grejs/Bilder/2023-05-06 - 2023-05-07 Camping The Basin/20230506_132834.jpg"));
         System.out.println("Result: " + metadata);
 
     }

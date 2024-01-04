@@ -32,6 +32,7 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import com.github.henkexbg.gallery.bean.GalleryDirectory;
+import jakarta.annotation.PostConstruct;
 import org.apache.commons.io.comparator.NameFileComparator;
 import org.apache.commons.io.filefilter.FileFilterUtils;
 import org.apache.commons.io.filefilter.IOFileFilter;
@@ -46,8 +47,6 @@ import com.github.henkexbg.gallery.service.VideoConversionService;
 import com.github.henkexbg.gallery.bean.GalleryFile;
 import com.github.henkexbg.gallery.bean.GalleryFile.GalleryFileType;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
-
-import javax.annotation.PostConstruct;
 
 /**
  * Implementation of the {@link GalleryService} interface. A number of services

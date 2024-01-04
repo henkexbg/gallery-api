@@ -23,9 +23,7 @@ package com.github.henkexbg.gallery.service.impl;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
@@ -38,7 +36,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.github.henkexbg.gallery.bean.GalleryRootDir;
 import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
-import com.github.henkexbg.gallery.service.GalleryRootDirChangeListener;
+import com.github.henkexbg.gallery.job.GalleryRootDirChangeListener;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 
 /**
@@ -114,15 +112,13 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
 	 * stores it in {@link #rootPathsPerRoleMap}
 	 */
 	@Override
-	public void setRootDirs(Collection<GalleryRootDir> rootDirs) {
+	public void onGalleryRootDirsUpdated(Collection<GalleryRootDir> galleryRootDirs) {
 		LOG.debug("Updating rootDirs");
-		Collection<String> allRoles = rootDirs.stream().map(r -> r.getRole()).collect(Collectors.toSet());
+		Collection<String> allRoles = galleryRootDirs.stream().map(r -> r.getRole()).collect(Collectors.toSet());
 		Map<String, Map<String, File>> rootPathsPerRoleMap = new HashMap<>();
 		for (String oneRole : allRoles) {
-			Map<String, File> rootPathsForRoles = rootDirs.stream().filter(rd -> oneRole.equals(rd.getRole()))
-					.collect(Collectors.toMap(GalleryRootDir::getName, GalleryRootDir::getDir, (dir1, dir2) -> {
-						return dir1;
-					}));
+			Map<String, File> rootPathsForRoles = galleryRootDirs.stream().filter(rd -> oneRole.equals(rd.getRole()))
+					.collect(Collectors.toMap(GalleryRootDir::getName, GalleryRootDir::getDir, (dir1, dir2) -> dir1));
 			rootPathsPerRoleMap.put(oneRole, rootPathsForRoles);
 		}
 		this.rootPathsPerRoleMap = rootPathsPerRoleMap;

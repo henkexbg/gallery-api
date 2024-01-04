@@ -37,13 +37,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Properties;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
-
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.henkexbg.gallery.service.GalleryRootDirChangeListener;
+import com.github.henkexbg.gallery.job.GalleryRootDirChangeListener;
 import com.github.henkexbg.gallery.bean.GalleryRootDir;
 
 /**
@@ -57,8 +56,6 @@ import com.github.henkexbg.gallery.bean.GalleryRootDir;
 public class GalleryRootDirConfigJob {
 
     private final Logger LOG = LoggerFactory.getLogger(getClass());
-
-    private Collection<GalleryRootDir> rootDirs = new ArrayList<>();
 
     private File configFile;
 
@@ -112,8 +109,7 @@ public class GalleryRootDirConfigJob {
                 oneRootDir.setDir(new File(v.toString()));
             }
         });
-        rootDirs = newRootDirs;
-        galleryRootDirChangeListeners.forEach(r -> r.setRootDirs(rootDirs));
+        galleryRootDirChangeListeners.forEach(r -> r.onGalleryRootDirsUpdated(newRootDirs));
     }
 
     private void watchForChanges() {

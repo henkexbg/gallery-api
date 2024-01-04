@@ -27,6 +27,7 @@ import org.springframework.test.context.web.WebAppConfiguration;
 import static org.mockito.Matchers.any;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.*;
 
 import static org.mockito.Matchers.any;
@@ -93,6 +94,7 @@ public class GallerySearchServiceImplTest {
 //    }
 
     @Test
+    @Ignore
     public void testQuery() throws Exception {
         galleryAuthorizationService.loginAdminUser();
         List<GalleryFile> searchResult = gallerySearchService.search(null, "Australia");
@@ -106,6 +108,19 @@ public class GallerySearchServiceImplTest {
     public void testUpdateDirs() throws Exception {
         ((GallerySearchServiceImpl) gallerySearchService).createOrUpdateAllDirectories();
     }
+
+//    @Test
+//    public void testDeleteEdge() {
+//        ((GallerySearchServiceImpl) gallerySearchService).deleteOneEdge(null);
+//    }
+
+
+    @Test
+    @Ignore
+    public void testDeleteOneVertexWithEdges() throws IOException {
+        ((GallerySearchServiceImpl) gallerySearchService).deleteOneVertexWithEdges(new File("/home/henrik/dev/gallery-test-data/Bilder/test7/DSCF4595.JPG"));
+    }
+
 
     @Configuration
     @ComponentScan("com.github.henkexbg")

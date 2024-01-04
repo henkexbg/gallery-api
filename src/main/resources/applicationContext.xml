@@ -34,6 +34,7 @@
         <property name="galleryRootDirChangeListeners">
             <list>
                 <ref bean="galleryAuthorizationService" />
+                <ref bean="gallerySearchService" />
             </list>
         </property>
         <property name="configFile" value="${gallery.groupDirAuth.propertiesFile}" />
@@ -53,7 +54,6 @@
         <property name="blacklistedVideosFilePath" value="${gallery.videoConversion.blacklistedVideosFile}" />
     </bean>
 
-
     <bean id="filenameToSearchTermsStrategy" class="com.github.henkexbg.gallery.strategy.impl.FilenameToSearchTermsStrategyImpl" />
 
     <bean id="metadataExtractionService" class="com.github.henkexbg.gallery.service.impl.MetadataExtractionServiceImpl">
@@ -69,7 +69,6 @@
         <property name="csvFile" value="${locationMetadata.csvFile}" />
     </bean>
 
-
     <bean id="gallerySearchService" class="com.github.henkexbg.gallery.service.impl.GallerySearchServiceImpl">
         <property name="galleryAuthorizationService" ref="galleryAuthorizationService" />
         <property name="galleryService" ref="galleryService" />
@@ -81,10 +80,6 @@
         <property name="dbName" value="${gallery.arangodb.database}" />
         <property name="dbUsername" value="${gallery.arangodb.username}" />
         <property name="dbPassword" value="${gallery.arangodb.password}" />
-    </bean>
-
-    <bean id="galleryFileWatcher" class="com.github.henkexbg.gallery.job.GalleryFileWatcher">
-        <property name="galleryAuthorizationService" ref="galleryAuthorizationService" />
     </bean>
 
 </beans>

@@ -19,7 +19,7 @@
  * SOFTWARE.
  * 
  */
-package com.github.henkexbg.gallery.service;
+package com.github.henkexbg.gallery.job;
 
 import java.util.Collection;
 
@@ -41,6 +41,6 @@ public interface GalleryRootDirChangeListener {
      *            A collection of root dirs. This will be the full new list. All
      *            old root dirs can be discarded by the listeners.
      */
-    void setRootDirs(Collection<GalleryRootDir> rootDirs);
+    void onGalleryRootDirsUpdated(Collection<GalleryRootDir> rootDirs);
 
 }

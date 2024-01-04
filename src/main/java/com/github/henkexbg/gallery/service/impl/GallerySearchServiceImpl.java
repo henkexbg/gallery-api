@@ -2,32 +2,35 @@ package com.github.henkexbg.gallery.service.impl;
 
 import com.arangodb.ArangoCursor;
 import com.arangodb.ArangoDB;
+import com.arangodb.ArangoDBException;
 import com.arangodb.ArangoDatabase;
 import com.arangodb.entity.BaseDocument;
 import com.arangodb.util.MapBuilder;
+import com.github.henkexbg.gallery.bean.GalleryRootDir;
 import com.github.henkexbg.gallery.bean.LocationResult;
+import com.github.henkexbg.gallery.job.GalleryRootDirChangeListener;
 import com.github.henkexbg.gallery.service.*;
 import com.github.henkexbg.gallery.bean.GalleryFile;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 import com.github.henkexbg.gallery.strategy.FilenameToSearchTermsStrategy;
+import io.methvin.watcher.DirectoryWatcher;
+import jakarta.annotation.PostConstruct;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.filefilter.FileFilterUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Required;
 
-import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Instant;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.apache.commons.io.FileUtils.listFilesAndDirs;
 
-public class GallerySearchServiceImpl implements GallerySearchService {
+public class GallerySearchServiceImpl implements GallerySearchService, GalleryRootDirChangeListener {
 
     private enum VertexType {
         FILE,
@@ -64,27 +67,22 @@ public class GallerySearchServiceImpl implements GallerySearchService {
 
     private String dbPassword;
 
-    @Required
     public void setGalleryAuthorizationService(GalleryAuthorizationService galleryAuthorizationService) {
         this.galleryAuthorizationService = galleryAuthorizationService;
     }
 
-    @Required
     public void setGalleryService(GalleryService galleryService) {
         this.galleryService = galleryService;
     }
 
-    @Required
     public void setFilenameToSearchTermsStrategy(FilenameToSearchTermsStrategy filenameToSearchTermsStrategy) {
         this.filenameToSearchTermsStrategy = filenameToSearchTermsStrategy;
     }
 
-    @Required
     public void setMetadataExtractionService(MetadataExtractionService metadataExtractionService) {
         this.metadataExtractionService = metadataExtractionService;
     }
 
-    @Required
     public void setLocationMetadataService(LocationMetadataService locationMetadataService) {
         this.locationMetadataService = locationMetadataService;
     }
@@ -97,17 +95,14 @@ public class GallerySearchServiceImpl implements GallerySearchService {
         this.dbPort = dbPort;
     }
 
-    @Required
     public void setDbName(String dbName) {
         this.dbName = dbName;
     }
 
-    @Required
     public void setDbUsername(String dbUsername) {
         this.dbUsername = dbUsername;
     }
 
-    @Required
     public void setDbPassword(String dbPassword) {
         this.dbPassword = dbPassword;
     }
@@ -119,6 +114,14 @@ public class GallerySearchServiceImpl implements GallerySearchService {
             arangoDBBuilder.host(dbHost, dbPort);
         }
         db = arangoDBBuilder.build().db(dbName);
+
+        // Create the root node if not existing
+        final String query =
+                "INSERT {_key: @key} IN " + COLLECTION_NAME_GALLERY_IMAGES + " OPTIONS { ignoreErrors: true }";
+        Map<String, Object> bindVars = new MapBuilder()
+                .put("key", ROOT_NODE_NAME)
+                .get();
+        db.query(query, bindVars, null, BaseDocument.class);
     }
 
     @Override
@@ -163,6 +166,80 @@ public class GallerySearchServiceImpl implements GallerySearchService {
         return galleryFiles;
     }
 
+
+    private DirectoryWatcher directoryWatcher;
+
+    @Override
+    public void onGalleryRootDirsUpdated(Collection<GalleryRootDir> galleryRootDirs) {
+        LOG.debug("onGalleryRootDirsUpdated(galleryRootDirs: {}", galleryRootDirs);
+        List<Path> rootDirs = galleryRootDirs.stream().map(grd -> grd.getDir().toPath()).toList();
+//        updateRootDirectories(rootDirs);
+//        fireEvent(rootDirs, Collections.emptySet(), Collections.emptySet());
+
+        try {
+            directoryWatcher = DirectoryWatcher.builder()
+                    .paths(rootDirs) // or use paths(directoriesToWatch)
+                    .listener(event -> {
+                        switch (event.eventType()) {
+                            case CREATE, MODIFY: /* file created */
+                                onFilesUpdated(Set.of(event.path().toFile()), Collections.emptySet(), Collections.emptySet());
+                                break;
+                            case DELETE: /* file deleted */
+                                onFilesUpdated(Collections.emptySet(), Collections.emptySet(), Set.of(event.path().toFile()));
+                                break;
+                        }
+                    })
+                    // .fileHashing(false) // defaults to true
+                    // .logger(logger) // defaults to LoggerFactory.getLogger(DirectoryWatcher.class)
+                    // .watchService(watchService) // defaults based on OS to either JVM WatchService or the JNA macOS WatchService
+                    .build();
+            directoryWatcher.watchAsync();
+        } catch (IOException ioe) {
+            LOG.error("Exception while reading gallery root directories for DB indexing", ioe);
+        }
+
+
+    }
+
+    /**
+     * This is called when any files and directories are modified or deleted within the root directories. The job here
+     * is to update the database appropriately
+     * @param createdFiles
+     * @param deletedFiles
+     */
+    private void onFilesUpdated(Set<File> createdFiles, Set<File> updatedFiles, Set<File> deletedFiles) {
+        LOG.debug("onFilesUpdated(createdFiles: {}, deletedFiles: {}", createdFiles, deletedFiles);
+        try {
+            galleryAuthorizationService.loginAdminUser();
+            Collection<File> rootDirectories = getRootDirectoriesForCurrentUser();
+            List<File> allUpdatedFilesSorted = createdFiles.stream().sorted((a, b) -> getPathNameNoException(a).length() - getPathNameNoException(b).length()).collect(Collectors.toList());
+            allUpdatedFilesSorted.forEach(f -> {
+                try {
+                    if (f.isDirectory()) {
+                        createOrUpdateOneDirectory(f, rootDirectories);
+                    } else {
+                        createOrUpdateOneFile(f);
+                    }
+                } catch (ArangoDBException | IOException e) {
+                    LOG.error("Error when updating {}. Ignoring", f, e);
+                }
+            });
+            List<File> allDeletedFilesSorted = deletedFiles.stream().sorted((a, b) -> getPathNameNoException(b).length() - getPathNameNoException(a).length()).collect(Collectors.toList());
+            allDeletedFilesSorted.forEach(df -> {
+                try {
+                    deleteOneVertexWithEdges(df);
+                } catch (ArangoDBException | IOException e) {
+                    LOG.error("Error when deleting {}. Ignoring", df, e);
+                }
+            });
+        } catch (Exception e) {
+            LOG.error("Error when updating files {} or deleting files {}. Aborting", createdFiles, deletedFiles, e);
+        }
+        finally {
+            galleryAuthorizationService.logoutAdminUser();
+        }
+    }
+
     private GalleryFile createGalleryFileFromSearchResult(GalleryDocument galleryDocument) {
         try {
 //            String path = galleryDocument.getPath().getProperties().get("path").toString();
@@ -202,31 +279,55 @@ public class GallerySearchServiceImpl implements GallerySearchService {
     public void createOrUpdateAllDirectories() {
         try {
             galleryAuthorizationService.loginAdminUser();
-            Map<String, File> rootPathsForCurrentUser = galleryAuthorizationService.getRootPathsForCurrentUser();
-            Collection<File> allDirectoriesCol = getAllDirectories(rootPathsForCurrentUser.values());
+            Collection<File> rootDirectories = getRootDirectoriesForCurrentUser();
+            Collection<File> allDirectoriesCol = getAllDirectories(rootDirectories);
             List<File> allDirectoriesSorted = allDirectoriesCol.stream().sorted((a, b) -> getPathNameNoException(a).length() - getPathNameNoException(b).length()).collect(Collectors.toList());
-            Collection<File> rootDirectories = rootPathsForCurrentUser.values();
             for (File oneDirectory : allDirectoriesSorted) {
-                updateOneVertex(oneDirectory, VertexType.DIR);
                 String currentDirKey = getKey(oneDirectory);
-                String parentDirKey = "-1";
-                if (rootDirectories.contains(oneDirectory)) {
-                    parentDirKey = ROOT_NODE_NAME;
-                } else {
-                    parentDirKey = getKey(oneDirectory.getParentFile());
+                try {
+                    createOrUpdateOneDirectory(oneDirectory, rootDirectories);
+                } catch (IOException | ArangoDBException e) {
+                    LOG.error("Error while creating or updating directory in database", oneDirectory, e);
                 }
-                updateOneEdge(currentDirKey, parentDirKey);
-                List<File> filesInDir = Arrays.stream(oneDirectory.listFiles()).filter(f -> f.isFile() && galleryService.isAllowedExtension(f)).collect(Collectors.toList());
+                List<File> filesInDir = Arrays.stream(oneDirectory.listFiles()).filter(f -> f.isFile()).collect(Collectors.toList());
                 for (File oneFile : filesInDir) {
-                    updateOneVertex(oneFile, VertexType.FILE);
-                    updateOneEdge(getKey(oneFile), currentDirKey);
+                    try {
+                        createOrUpdateOneFile(oneFile, currentDirKey);
+                    } catch (IOException | ArangoDBException e) {
+                        LOG.error("Failed in updating {}. Ignoring", oneFile, e);
+                    }
                 }
             }
-        } catch (Exception e) {
-            LOG.error("Error while creating and updating all directories into database", e);
+        } catch (IOException | NotAllowedException e) {
+            LOG.error("Error while creating or updating directories and files in database", e);
         } finally {
             galleryAuthorizationService.logoutAdminUser();
         }
+    }
+
+    private void createOrUpdateOneDirectory(File directory, Collection<File> rootDirectories) throws IOException {
+        updateOneVertex(directory, VertexType.DIR);
+        String currentDirKey = getKey(directory);
+        String parentDirKey = "-1";
+        if (rootDirectories.contains(directory)) {
+            parentDirKey = ROOT_NODE_NAME;
+        } else {
+            parentDirKey = getKey(directory.getParentFile());
+        }
+        updateOneEdge(currentDirKey, parentDirKey);
+    }
+
+    private void createOrUpdateOneFile(File file) throws IOException {
+        String parentDirKey = getKey(file.getParentFile());
+        createOrUpdateOneFile(file, parentDirKey);
+    }
+
+    private void createOrUpdateOneFile(File file, String parentDirKey) throws IOException {
+        if (!galleryService.isAllowedExtension(file)) {
+            return;
+        }
+        updateOneVertex(file, VertexType.FILE);
+        updateOneEdge(getKey(file), parentDirKey);
     }
 
     private String getPathNameNoException(File f) {
@@ -235,6 +336,11 @@ public class GallerySearchServiceImpl implements GallerySearchService {
         } catch (IOException ioe) {
             throw new RuntimeException("IOException when checking file path name. This should NOT happen!", ioe);
         }
+    }
+
+    private Collection<File> getRootDirectoriesForCurrentUser() throws IOException {
+        Map<String, File> rootPathsForCurrentUser = galleryAuthorizationService.getRootPathsForCurrentUser();
+        return rootPathsForCurrentUser.values();
     }
 
     private void updateOneVertex(File file, VertexType vertexType) throws IOException {
@@ -250,10 +356,8 @@ public class GallerySearchServiceImpl implements GallerySearchService {
             metadata = metadataExtractionService.getMetadata(file);
             if (metadata.gpsLatitude() != null) {
                 locationMetadata = locationMetadataService.getLocationMetadata(metadata.gpsLatitude(), metadata.gpsLongitude());
-                String apa = "1";
             }
         }
-
         Map<String, Object> bindVars = new MapBuilder()
                 .put("key", dirHash)
                 .put("path", file.getCanonicalPath())
@@ -264,6 +368,21 @@ public class GallerySearchServiceImpl implements GallerySearchService {
                 .put("gpsLongitude", metadata != null ? metadata.gpsLongitude() : null)
                 .put("physicalLocations", locationMetadata != null ? locationMetadata.getLocations() : Collections.EMPTY_LIST)
                 .put("country", locationMetadata != null && locationMetadata.getCountryCode() != null ? new Locale("", locationMetadata.getCountryCode()).getDisplayName() : null)
+                .get();
+        db.query(query, bindVars, null, BaseDocument.class);
+    }
+
+    public void deleteOneVertexWithEdges(File file) throws IOException {
+        String key = getKey(file);
+        String node = COLLECTION_NAME_GALLERY_IMAGES + "/" + key;
+        String query = """
+                LET edgeKeys = (FOR v, e IN 1..1 ANY @node GRAPH 'galleryImageOwns' RETURN e._key)
+                LET r = (FOR key IN edgeKeys REMOVE key IN galleryImageOwns)\s
+                REMOVE @key IN galleryImages
+                """;
+        Map<String, Object> bindVars = new MapBuilder()
+                .put("key", key)
+                .put("node", node)
                 .get();
         db.query(query, bindVars, null, BaseDocument.class);
     }
