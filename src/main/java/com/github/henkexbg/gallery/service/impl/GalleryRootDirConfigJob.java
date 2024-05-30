@@ -74,7 +74,6 @@ public class GalleryRootDirConfigJob {
             watchForChanges();
         };
         new Thread(fileWatcher).start();
-        ;
     }
 
     @PreDestroy
@@ -110,6 +109,7 @@ public class GalleryRootDirConfigJob {
             }
         });
         galleryRootDirChangeListeners.forEach(r -> r.onGalleryRootDirsUpdated(newRootDirs));
+        LOG.debug("Done notifying listeners");
     }
 
     private void watchForChanges() {

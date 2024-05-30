@@ -26,6 +26,8 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URLDecoder;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -491,7 +493,8 @@ public class GalleryController {
 		String bestMatchPattern = (String) request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
 		AntPathMatcher apm = new AntPathMatcher();
 		String finalPath = apm.extractPathWithinPattern(bestMatchPattern, path);
-		return finalPath;
+		// A recent Spring update seems to have changed the behaviour. We now need to URL-decode the request path
+		return URLDecoder.decode(finalPath, Charset.forName("UTF-8"));
 	}
 
 	/**

@@ -173,6 +173,7 @@ public class GallerySearchServiceImpl implements GallerySearchService, GalleryRo
     public void onGalleryRootDirsUpdated(Collection<GalleryRootDir> galleryRootDirs) {
         LOG.debug("onGalleryRootDirsUpdated(galleryRootDirs: {}", galleryRootDirs);
         List<Path> rootDirs = galleryRootDirs.stream().map(grd -> grd.getDir().toPath()).toList();
+        LOG.debug("Found %s directories to watch for search service".formatted(rootDirs.size()));
 //        updateRootDirectories(rootDirs);
 //        fireEvent(rootDirs, Collections.emptySet(), Collections.emptySet());
 
@@ -189,15 +190,16 @@ public class GallerySearchServiceImpl implements GallerySearchService, GalleryRo
                                 break;
                         }
                     })
-                    // .fileHashing(false) // defaults to true
+                     .fileHashing(false) // defaults to true
                     // .logger(logger) // defaults to LoggerFactory.getLogger(DirectoryWatcher.class)
                     // .watchService(watchService) // defaults based on OS to either JVM WatchService or the JNA macOS WatchService
                     .build();
+            LOG.debug("Built directory watcher for search service. About to start watching");
             directoryWatcher.watchAsync();
         } catch (IOException ioe) {
             LOG.error("Exception while reading gallery root directories for DB indexing", ioe);
         }
-
+        LOG.debug("Done adding directory watcher for search service");
 
     }
 
