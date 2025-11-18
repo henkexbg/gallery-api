@@ -1,51 +1,34 @@
 package com.github.henkexbg.gallery.service.impl;
 
-import com.arangodb.ArangoCursor;
-import com.arangodb.ArangoDB;
-import com.arangodb.ArangoDBException;
-import com.arangodb.ArangoDatabase;
-import com.arangodb.entity.BaseDocument;
-import com.arangodb.util.MapBuilder;
-import com.github.henkexbg.gallery.bean.GalleryRootDir;
-import com.github.henkexbg.gallery.bean.LocationResult;
+import com.github.henkexbg.gallery.bean.*;
 import com.github.henkexbg.gallery.job.GalleryRootDirChangeListener;
 import com.github.henkexbg.gallery.service.*;
-import com.github.henkexbg.gallery.bean.GalleryFile;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 import com.github.henkexbg.gallery.strategy.FilenameToSearchTermsStrategy;
 import io.methvin.watcher.DirectoryWatcher;
 import jakarta.annotation.PostConstruct;
-import org.apache.commons.codec.digest.DigestUtils;
+import jakarta.annotation.Resource;
 import org.apache.commons.io.filefilter.FileFilterUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.jdbi.v3.core.Jdbi;
+import org.jdbi.v3.core.statement.Query;
+import org.jdbi.v3.core.statement.Update;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
+import java.sql.*;
 import java.util.*;
-import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.apache.commons.io.FileUtils.listFilesAndDirs;
 
 public class GallerySearchServiceImpl implements GallerySearchService, GalleryRootDirChangeListener {
 
-    private enum VertexType {
-        FILE,
-        DIR
-    }
-
-    private static final String COLLECTION_NAME_GALLERY_IMAGES = "galleryImages";
-
-    private static final String GRAPH_NAME = "galleryImageOwns";
-
-    private static final String ROOT_NODE_NAME = "ROOT_NODE";
-
     private final Logger LOG = LoggerFactory.getLogger(getClass());
-
-    private ArangoDatabase db;
 
     private GalleryAuthorizationService galleryAuthorizationService;
 
@@ -55,17 +38,8 @@ public class GallerySearchServiceImpl implements GallerySearchService, GalleryRo
 
     private MetadataExtractionService metadataExtractionService;
 
-    private LocationMetadataService locationMetadataService;
-
-    private String dbHost;
-
-    private Integer dbPort;
-
-    private String dbName = "_system";
-
-    private String dbUsername;
-
-    private String dbPassword;
+    @Resource
+    private Jdbi jdbi;
 
     public void setGalleryAuthorizationService(GalleryAuthorizationService galleryAuthorizationService) {
         this.galleryAuthorizationService = galleryAuthorizationService;
@@ -83,110 +57,74 @@ public class GallerySearchServiceImpl implements GallerySearchService, GalleryRo
         this.metadataExtractionService = metadataExtractionService;
     }
 
-    public void setLocationMetadataService(LocationMetadataService locationMetadataService) {
-        this.locationMetadataService = locationMetadataService;
-    }
-
-    public void setDbHost(String dbHost) {
-        this.dbHost = dbHost;
-    }
-
-    public void setDbPort(Integer dbPort) {
-        this.dbPort = dbPort;
-    }
-
-    public void setDbName(String dbName) {
-        this.dbName = dbName;
-    }
-
-    public void setDbUsername(String dbUsername) {
-        this.dbUsername = dbUsername;
-    }
-
-    public void setDbPassword(String dbPassword) {
-        this.dbPassword = dbPassword;
-    }
-
     @PostConstruct
     public void init() {
-        ArangoDB.Builder arangoDBBuilder = new ArangoDB.Builder().user(dbUsername).password(dbPassword);
-        if (StringUtils.isNotBlank(dbHost) && dbPort > 0) {
-            arangoDBBuilder.host(dbHost, dbPort);
-        }
-        db = arangoDBBuilder.build().db(dbName);
-
-        // Create the root node if not existing
-        final String query =
-                "INSERT {_key: @key} IN " + COLLECTION_NAME_GALLERY_IMAGES + " OPTIONS { ignoreErrors: true }";
-        Map<String, Object> bindVars = new MapBuilder()
-                .put("key", ROOT_NODE_NAME)
-                .get();
-        db.query(query, bindVars, null, BaseDocument.class);
+        // Create tables if not existing
     }
+
 
     @Override
     public List<GalleryFile> search(String publicPath, String searchTerm) throws IOException, NotAllowedException {
-        List<String> startNodes = new ArrayList<>();
+        List<String> basePaths = new ArrayList<>();
         if (StringUtils.isNotBlank(publicPath)) {
-            startNodes.add(COLLECTION_NAME_GALLERY_IMAGES + "/" + getKey(galleryAuthorizationService.getRealFileOrDir(publicPath)));
+            basePaths.add(galleryAuthorizationService.getRealFileOrDir(publicPath).getCanonicalPath());
         } else {
-            List<File> rootDirsForUser = galleryAuthorizationService.getRootPathsForCurrentUser().entrySet().stream().map(e -> e.getValue()).collect(Collectors.toList());
-            for (File f : rootDirsForUser) {
-                startNodes.add(COLLECTION_NAME_GALLERY_IMAGES + "/" + getKey(f));
-            }
+            galleryAuthorizationService.getRootPathsForCurrentUser().forEach((k,v) -> {
+                try {
+                    basePaths.add(v.getCanonicalPath());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         }
-        LOG.debug("Performing search with publicPath={}, startNodes={} searchTerm={}", publicPath, startNodes, searchTerm);
+        LOG.debug("Performing search with publicPath={}, basePaths={} searchTerm={}", publicPath, basePaths, searchTerm);
 
-        final String query = """
-                FOR startNode in @startNodes
-                  FOR v, e, p IN 1..5 OUTBOUND startNode galleryImageOwns
-                    FILTER v.type == 'FILE'
-                    LET a1 = APPEND(FLATTEN(p.vertices[*].tags), v.tags)
-                    LET a2 = APPEND(a1, APPEND(FLATTEN(p.vertices[*].filenameParts), v.fileNameParts))
-                    LET a3 = APPEND(a2, FLATTEN(p.vertices[*].physicalLocations), v.physicalLocations)
-                    LET a4 = APPEND(a3, v.country)
-                    LET actualSearchArray = (FOR elem IN a4 RETURN LOWER(elem))
-                    LET lowerCaseSearchParams = (FOR elem IN @searchTerms RETURN LOWER(elem))
-                    FILTER lowerCaseSearchParams ALL IN actualSearchArray
-                    SORT v.dateTaken DESC
-                    RETURN v
-                """;
+        List<String> searchTerms = Arrays.stream(searchTerm.split("\\s")).map(String::trim).map(String::toLowerCase).map(s -> s + "%").toList();
 
-        LOG.debug("Final query: {}", query);
-        Map<String, Object> bindVars = new MapBuilder().put("startNodes", startNodes).put("searchTerms", Arrays.stream(searchTerm.split(",")).map(s -> s.trim()).toList()).get();
-        ArangoCursor<GalleryDocument> cursor = db.query(query, bindVars, null, GalleryDocument.class);
-        List<GalleryFile> galleryFiles = new ArrayList<>();
-        cursor.forEachRemaining(aDocument -> {
-            GalleryFile oneGalleryFile = createGalleryFileFromSearchResult(aDocument);
-            if (oneGalleryFile != null) {
-                galleryFiles.add(oneGalleryFile);
+        StringBuilder sb = new StringBuilder("SELECT * FROM GALLERY_FILE f WHERE f.ID IN (SELECT DISTINCT t.FILE_ID FROM TAG t WHERE ");
+        for (int i = 0; i < searchTerms.size(); i++) {
+            if (i > 0) sb.append(" OR ");
+            sb.append("t.TEXT LIKE :term%s".formatted(i));
+        }
+        sb.append(")");
+
+        String fullQuery = sb.toString();
+        List<DbFile> list = new ArrayList<>();
+        long startQueryTime = System.currentTimeMillis();
+        try {
+            jdbi.useHandle(handle -> {
+                Query query = handle.createQuery(fullQuery);
+            for (int i = 0; i < searchTerms.size(); i++) {
+                query.bind("term%s".formatted(i), searchTerms.get(i));
             }
-        });
+                list.addAll(query.mapTo(DbFile.class).stream().toList());
+            });
+        } catch (Exception e) {
+            LOG.error("Error when performing database search", e);
+            throw new IOException(e);
+        }
+        LOG.debug("Performing database search took {}ms", System.currentTimeMillis() - startQueryTime);
+        List<GalleryFile> galleryFiles = list.stream().map(this::createGalleryFileFromDbFile).toList();
         LOG.debug("Returning {} gallery files", galleryFiles.size());
         return galleryFiles;
     }
-
-
-    private DirectoryWatcher directoryWatcher;
 
     @Override
     public void onGalleryRootDirsUpdated(Collection<GalleryRootDir> galleryRootDirs) {
         LOG.debug("onGalleryRootDirsUpdated(galleryRootDirs: {}", galleryRootDirs);
         List<Path> rootDirs = galleryRootDirs.stream().map(grd -> grd.getDir().toPath()).toList();
-        LOG.debug("Found %s directories to watch for search service".formatted(rootDirs.size()));
-//        updateRootDirectories(rootDirs);
-//        fireEvent(rootDirs, Collections.emptySet(), Collections.emptySet());
-
+        LOG.debug("Found {} directories to watch for search service", rootDirs.size());
+        DirectoryWatcher directoryWatcher;
         try {
             directoryWatcher = DirectoryWatcher.builder()
                     .paths(rootDirs) // or use paths(directoriesToWatch)
                     .listener(event -> {
                         switch (event.eventType()) {
                             case CREATE, MODIFY: /* file created */
-                                onFilesUpdated(Set.of(event.path().toFile()), Collections.emptySet(), Collections.emptySet());
+                                onFilesUpdated(Set.of(event.path().toFile()), Collections.emptySet());
                                 break;
                             case DELETE: /* file deleted */
-                                onFilesUpdated(Collections.emptySet(), Collections.emptySet(), Set.of(event.path().toFile()));
+                                onFilesUpdated(Collections.emptySet(), Set.of(event.path().toFile()));
                                 break;
                         }
                     })
@@ -206,15 +144,15 @@ public class GallerySearchServiceImpl implements GallerySearchService, GalleryRo
     /**
      * This is called when any files and directories are modified or deleted within the root directories. The job here
      * is to update the database appropriately
-     * @param createdFiles
-     * @param deletedFiles
+     * @param upsertedFiles Created or updated filed
+     * @param deletedFiles Deleted files
      */
-    private void onFilesUpdated(Set<File> createdFiles, Set<File> updatedFiles, Set<File> deletedFiles) {
-        LOG.debug("onFilesUpdated(createdFiles: {}, deletedFiles: {}", createdFiles, deletedFiles);
+    private void onFilesUpdated(Set<File> upsertedFiles, Set<File> deletedFiles) {
+        LOG.debug("onFilesUpdated(createdFiles: {}, deletedFiles: {}", upsertedFiles, deletedFiles);
         try {
             galleryAuthorizationService.loginAdminUser();
             Collection<File> rootDirectories = getRootDirectoriesForCurrentUser();
-            List<File> allUpdatedFilesSorted = createdFiles.stream().sorted((a, b) -> getPathNameNoException(a).length() - getPathNameNoException(b).length()).collect(Collectors.toList());
+            List<File> allUpdatedFilesSorted = upsertedFiles.stream().sorted((a, b) -> getPathNameNoException(a).length() - getPathNameNoException(b).length()).toList();
             allUpdatedFilesSorted.forEach(f -> {
                 try {
                     if (f.isDirectory()) {
@@ -222,35 +160,34 @@ public class GallerySearchServiceImpl implements GallerySearchService, GalleryRo
                     } else {
                         createOrUpdateOneFile(f);
                     }
-                } catch (ArangoDBException | IOException e) {
+                } catch (IOException e) {
                     LOG.error("Error when updating {}. Ignoring", f, e);
                 }
             });
-            List<File> allDeletedFilesSorted = deletedFiles.stream().sorted((a, b) -> getPathNameNoException(b).length() - getPathNameNoException(a).length()).collect(Collectors.toList());
+            List<File> allDeletedFilesSorted = deletedFiles.stream().sorted((a, b) -> getPathNameNoException(b).length() - getPathNameNoException(a).length()).toList();
             allDeletedFilesSorted.forEach(df -> {
                 try {
-                    deleteOneVertexWithEdges(df);
-                } catch (ArangoDBException | IOException e) {
+                    deleteOneFile(df);
+                } catch (IOException e) {
                     LOG.error("Error when deleting {}. Ignoring", df, e);
                 }
             });
         } catch (Exception e) {
-            LOG.error("Error when updating files {} or deleting files {}. Aborting", createdFiles, deletedFiles, e);
+            LOG.error("Error when updating files {} or deleting files {}. Aborting", upsertedFiles, deletedFiles, e);
         }
         finally {
             galleryAuthorizationService.logoutAdminUser();
         }
     }
 
-    private GalleryFile createGalleryFileFromSearchResult(GalleryDocument galleryDocument) {
+    private GalleryFile createGalleryFileFromDbFile(DbFile dbFile) {
         try {
-//            String path = galleryDocument.getPath().getProperties().get("path").toString();
-            String path = galleryDocument.getPath();
+            String path = dbFile.getPathOnDisk();
             File realFile = new File(path);
             String publicPath = galleryService.getPublicPathFromRealFile(realFile);
             GalleryFile galleryFile = galleryService.createGalleryFile(publicPath, realFile);
-            if (galleryDocument.getDateTaken() != null) {
-                galleryFile.setDateTaken(Instant.parse(galleryDocument.getDateTaken()));
+            if (dbFile.getDateTaken() != null) {
+                galleryFile.setDateTaken(dbFile.getDateTaken());
             }
             return galleryFile;
         } catch (NotAllowedException nae) {
@@ -262,40 +199,23 @@ public class GallerySearchServiceImpl implements GallerySearchService, GalleryRo
         }
     }
 
-    public void searchTest() throws Exception {
-//        String query =
-//                "FOR v, e, p IN 1..5 OUTBOUND 'galleryImages/a96e85746f8732b97d86579f0387d8990ac3af62f5b4d2ce3187d7fe88d66b28'  galleryImageOwns " +
-//                "FOR vv IN p.vertices " +
-//                "RETURN DISTINCT v";
-        final String query = "FOR v, e, p IN 1..5 OUTBOUND 'galleryImages/a96e85746f8732b97d86579f0387d8990ac3af62f5b4d2ce3187d7fe88d66b28'  galleryImageOwns " +
-                "FILTER v.type == 'FILE'\n" +
-                "LET fullArray = APPEND(FLATTEN(p.vertices[*].tags), FLATTEN(p.vertices[*].filenameParts)) \n" +
-                "FILTER ['Michael'] ALL IN fullArray \n" +
-                "RETURN DISTINCT v";
-        ArangoCursor<GalleryDocument> cursor = db.query(query, null, null, GalleryDocument.class);
-        cursor.forEachRemaining(aDocument -> {
-            System.out.println("Key: " + aDocument.getKey());
-        });
-    }
-
     public void createOrUpdateAllDirectories() {
         try {
             galleryAuthorizationService.loginAdminUser();
             Collection<File> rootDirectories = getRootDirectoriesForCurrentUser();
             Collection<File> allDirectoriesCol = getAllDirectories(rootDirectories);
-            List<File> allDirectoriesSorted = allDirectoriesCol.stream().sorted((a, b) -> getPathNameNoException(a).length() - getPathNameNoException(b).length()).collect(Collectors.toList());
+            List<File> allDirectoriesSorted = allDirectoriesCol.stream().sorted((a, b) -> getPathNameNoException(a).length() - getPathNameNoException(b).length()).toList();
             for (File oneDirectory : allDirectoriesSorted) {
-                String currentDirKey = getKey(oneDirectory);
                 try {
                     createOrUpdateOneDirectory(oneDirectory, rootDirectories);
-                } catch (IOException | ArangoDBException e) {
-                    LOG.error("Error while creating or updating directory in database", oneDirectory, e);
+                } catch (IOException e) {
+                    LOG.error("Error while creating or updating directory {} in database", oneDirectory, e);
                 }
-                List<File> filesInDir = Arrays.stream(oneDirectory.listFiles()).filter(f -> f.isFile()).collect(Collectors.toList());
+                List<File> filesInDir = Arrays.stream(Objects.requireNonNull(oneDirectory.listFiles())).filter(File::isFile).toList();
                 for (File oneFile : filesInDir) {
                     try {
-                        createOrUpdateOneFile(oneFile, currentDirKey);
-                    } catch (IOException | ArangoDBException e) {
+                        createOrUpdateOneFile(oneFile);
+                    } catch (IOException e) {
                         LOG.error("Failed in updating {}. Ignoring", oneFile, e);
                     }
                 }
@@ -307,29 +227,172 @@ public class GallerySearchServiceImpl implements GallerySearchService, GalleryRo
         }
     }
 
-    private void createOrUpdateOneDirectory(File directory, Collection<File> rootDirectories) throws IOException {
-        updateOneVertex(directory, VertexType.DIR);
-        String currentDirKey = getKey(directory);
-        String parentDirKey = "-1";
-        if (rootDirectories.contains(directory)) {
-            parentDirKey = ROOT_NODE_NAME;
-        } else {
-            parentDirKey = getKey(directory.getParentFile());
+    public void createOrUpdateOneDirectory(File directory, Collection<File> rootDirectories) throws IOException {
+        final String findParentQuery = """
+                    SELECT id FROM gallery_file
+                    WHERE path_on_disk = :path_on_disk
+                    """;
+        final String mergeQueryRootDir = """
+                MERGE INTO gallery_file (path_on_disk, is_directory, last_modified)
+                KEY (path_on_disk)
+                VALUES (:path_on_disk, true, :last_modified)
+                """;
+        final String mergeQueryChildDir = """
+                MERGE INTO gallery_file (parent_id, path_on_disk, is_directory, last_modified)
+                KEY (path_on_disk)
+                VALUES (:parent_id, :path_on_disk, true, :last_modified)
+                """;
+        final String deleteFilenamePartsQuery = """
+                DELETE FROM filename_part WHERE file_id = :file_id
+                """;
+        final String updateFilenamePartsQuery = """
+                INSERT INTO filename_part (file_id, part_index, part) VALUES (:file_id, :part_index, :part)
+                """;
+
+        try {
+            List<String> filenameParts = filenameToSearchTermsStrategy.generateSearchTermsFromFilename(directory);
+            String directoryPath = directory.getCanonicalPath();
+            String parentPath = rootDirectories.contains(directory) ? null : directory.getParentFile().getCanonicalPath();
+            AtomicLong atomicDirectoryPk = new AtomicLong();
+            jdbi.useHandle(handle -> {
+                Update updateQueryObj = handle.createUpdate(mergeQueryChildDir).bind("path_on_disk", directoryPath)
+                        .bind("last_modified", new Timestamp(directory.lastModified()));
+
+                if (parentPath != null) {
+                    Integer parentId = handle.createQuery(findParentQuery).bind("path_on_disk", parentPath).mapTo(Integer.class).one();
+                    updateQueryObj.bind("parent_id", parentId);
+                } else {
+                    updateQueryObj.bindNull("parent_id", Types.BIGINT);
+                }
+
+                long directoryPk = updateQueryObj.executeAndReturnGeneratedKeys().mapTo(Long.class).one();
+                atomicDirectoryPk.set(directoryPk);
+
+                handle.createUpdate(deleteFilenamePartsQuery).bind("file_id", directoryPk).execute();
+                for (int i = 0; i < filenameParts.size(); i++) {
+                    handle.createUpdate(updateFilenamePartsQuery).bind("file_id", directoryPk).bind("part_index", i)
+                            .bind("part", filenameParts.get(i)).execute();
+                }
+            });
+            updateFilenameTags(directory, atomicDirectoryPk.get());
+        } catch (Exception e) {
+            LOG.error("Error while creating or updating directory {} in database", directory, e);
+            throw new IOException(e);
         }
-        updateOneEdge(currentDirKey, parentDirKey);
+    }
+
+    private void deleteOneFile(File file) throws IOException {
+        final String deleteGalleryFileQuery = """
+                DELETE FROM PUBLIC.gallery_file WHERE path_on_disk = :path_on_disk
+                """;
+        jdbi.useHandle(handle -> {
+            String filePath = file.getCanonicalPath();
+            int nrDeleted = handle.createUpdate(deleteGalleryFileQuery).bind("path_on_disk", filePath).execute();
+            LOG.debug("Deleting {} resulted in {} rows removed in DB", filePath, nrDeleted);
+        });
     }
 
     private void createOrUpdateOneFile(File file) throws IOException {
-        String parentDirKey = getKey(file.getParentFile());
-        createOrUpdateOneFile(file, parentDirKey);
+        try {
+            if (!galleryService.isAllowedExtension(file)) {
+                return;
+            }
+            final String findParentQuery = """
+                    SELECT id FROM gallery_file
+                    WHERE path_on_disk = :path_on_disk
+                    """;
+            final String mergeQuery = """
+                    MERGE INTO gallery_file (parent_id, path_on_disk, is_directory, file_type, content_type, location, date_taken, nearest_location_id, last_modified)
+                    KEY (path_on_disk)
+                    VALUES (:parent_id, :path_on_disk, false, :file_type, :content_type, :location, :date_taken, :nearest_location_id, :last_modified)
+                    """;
+            final String findNearestLocationQuery = """
+                SELECT * FROM location ORDER BY ST_Distance(the_geom, ST_GeomFromText(:location, 4326)) LIMIT 1
+                """;
+            String parentPath = file.getParentFile().getCanonicalPath();
+            MetadataExtractionService.FileMetaData metadata = metadataExtractionService.getMetadata(file);
+            String point = metadata.gpsLatitude() != null && metadata.gpsLongitude() != null ? "POINT(%s %s)".formatted(metadata.gpsLongitude(), metadata.gpsLatitude()) : null;
+            String contentType = getContentType(file);
+            AtomicLong atomicFileId = new AtomicLong();
+            Location nearestLocation = point != null ? jdbi.withHandle(handle ->
+                handle.createQuery(findNearestLocationQuery).bind("location", point).mapTo(Location.class).one()
+            ) : null;
+
+            jdbi.useHandle(handle -> {
+                Integer parentId = handle.createQuery(findParentQuery).bind("path_on_disk", parentPath).mapTo(Integer.class).one();
+                if (parentId == null) {
+                    throw new IOException("File %s did not have a valid parent directory".formatted(file.getCanonicalPath()));
+                }
+                Long fileId = handle.createUpdate(mergeQuery).bind("parent_id", parentId).bind("path_on_disk", file.getCanonicalPath())
+                        .bind("file_type", isVideo(contentType) ? "video" : "image").bind("content_type", contentType)
+                        .bind("location", point)
+                        .bind("date_taken", metadata.dateTaken() != null ? new Timestamp(metadata.dateTaken().toEpochMilli()) : null)
+                        .bind("nearest_location_id", nearestLocation != null ? nearestLocation.getPk() : null)
+                        .bind("last_modified", new Timestamp(file.lastModified())).executeAndReturnGeneratedKeys().mapTo(Long.class).one();
+
+                atomicFileId.set(fileId);
+            });
+
+            updateFilenameTags(file, atomicFileId.get());
+            updateLocationTags(file, atomicFileId.get(), nearestLocation);
+        } catch (Exception e) {
+            throw new IOException(e);
+        }
     }
 
-    private void createOrUpdateOneFile(File file, String parentDirKey) throws IOException {
-        if (!galleryService.isAllowedExtension(file)) {
+    private void updateFilenameTags(File fileOrDir, long fileId) throws IOException {
+        List<String> filenameParts = filenameToSearchTermsStrategy.generateSearchTermsFromFilename(fileOrDir);
+        updateTagsForSource(fileOrDir, fileId, "FILENAME", filenameParts);
+    }
+
+    private void updateLocationTags(File fileOrDir, long fileId, Location location) throws IOException {
+        if (location == null) {
             return;
         }
-        updateOneVertex(file, VertexType.FILE);
-        updateOneEdge(getKey(file), parentDirKey);
+        List<String> locationParts = List.of(location.getName(), location.getCountryName(), location.getAdm1Name(), location.getCountryIsoA2());
+        updateTagsForSource(fileOrDir, fileId, "LOCATION", locationParts);
+    }
+
+    private void updateTagsForSource(File fileOrDir, long fileId, String source, List<String> newTags) throws IOException {
+        final String deleteTagsQuery = """
+                DELETE FROM tag WHERE source = :source AND file_id = :file_id
+                """;
+        final String updateTagsQuery = """
+                INSERT INTO tag (file_id, source, text) VALUES (:file_id, :source, :text)
+                """;
+        try {
+            jdbi.useTransaction(handle -> {
+                handle.createUpdate(deleteTagsQuery).bind("file_id", fileId).bind("source", source).execute();
+                for (String newTag : newTags) {
+                    if (StringUtils.isNotBlank(newTag)) {
+                        handle.createUpdate(updateTagsQuery).bind("file_id", fileId).bind("source", source).bind("text", newTag).execute();
+                    }
+                }
+            });
+        } catch (Exception e) {
+            LOG.error("Error while creating or updating tags for file {} with ID {} in database", fileOrDir, fileId, e);
+            throw new IOException(e);
+        }
+    }
+
+    /**
+     * Determines the content type for a given file. Will delegate to JVM/operating
+     * system.
+     *
+     * @param file File.
+     * @return Content type for given file.
+     * @throws IOException If there's an error finding the content type
+     */
+    private String getContentType(File file) throws IOException {
+        return Files.probeContentType(file.toPath());
+    }
+
+    private boolean isVideo(File file) throws IOException {
+        return StringUtils.startsWith(getContentType(file), "video");
+    }
+
+    private boolean isVideo(String contentType) throws IOException {
+        return StringUtils.startsWith(contentType, "video");
     }
 
     private String getPathNameNoException(File f) {
@@ -345,62 +408,6 @@ public class GallerySearchServiceImpl implements GallerySearchService, GalleryRo
         return rootPathsForCurrentUser.values();
     }
 
-    private void updateOneVertex(File file, VertexType vertexType) throws IOException {
-        final String query =
-                "UPSERT {_key: @key}\n" +
-                        "INSERT {_key: @key, type: @type, tags: [], path: @path, dateTaken: @dateTaken, filenameParts: @filenameParts, gpsLatitude: @gpsLatitude, gpsLongitude: @gpsLongitude, physicalLocations: @physicalLocations, country: @country} \n" +
-                        "UPDATE {path: @path, dateTaken: @dateTaken, filenameParts: @filenameParts, gpsLatitude: @gpsLatitude, gpsLongitude: @gpsLongitude} IN " + COLLECTION_NAME_GALLERY_IMAGES;
-        String dirHash = getKey(file);
-        Collection<String> filenameParts = filenameToSearchTermsStrategy.generateSearchTermsFromFilename(file);
-        MetadataExtractionService.FileMetaData metadata = null;
-        LocationResult locationMetadata = null;
-        if (vertexType == VertexType.FILE) {
-            metadata = metadataExtractionService.getMetadata(file);
-            if (metadata.gpsLatitude() != null) {
-                locationMetadata = locationMetadataService.getLocationMetadata(metadata.gpsLatitude(), metadata.gpsLongitude());
-            }
-        }
-        Map<String, Object> bindVars = new MapBuilder()
-                .put("key", dirHash)
-                .put("path", file.getCanonicalPath())
-                .put("type", vertexType.name())
-                .put("filenameParts", filenameParts)
-                .put("dateTaken", metadata != null && metadata.dateTaken() != null ? metadata.dateTaken().toString() : null)
-                .put("gpsLatitude", metadata != null ? metadata.gpsLatitude() : null)
-                .put("gpsLongitude", metadata != null ? metadata.gpsLongitude() : null)
-                .put("physicalLocations", locationMetadata != null ? locationMetadata.getLocations() : Collections.EMPTY_LIST)
-                .put("country", locationMetadata != null && locationMetadata.getCountryCode() != null ? new Locale("", locationMetadata.getCountryCode()).getDisplayName() : null)
-                .get();
-        db.query(query, bindVars, null, BaseDocument.class);
-    }
-
-    public void deleteOneVertexWithEdges(File file) throws IOException {
-        String key = getKey(file);
-        String node = COLLECTION_NAME_GALLERY_IMAGES + "/" + key;
-        String query = """
-                LET edgeKeys = (FOR v, e IN 1..1 ANY @node GRAPH 'galleryImageOwns' RETURN e._key)
-                LET r = (FOR key IN edgeKeys REMOVE key IN galleryImageOwns)\s
-                REMOVE @key IN galleryImages
-                """;
-        Map<String, Object> bindVars = new MapBuilder()
-                .put("key", key)
-                .put("node", node)
-                .get();
-        db.query(query, bindVars, null, BaseDocument.class);
-    }
-
-    private void updateOneEdge(String to, String from) throws IOException {
-        final String query =
-                "UPSERT {_from: @from, _to: @to}\n" +
-                        "INSERT {_from: @from, _to: @to} \n" +
-                        "UPDATE {_from: @from, _to: @to} IN " + GRAPH_NAME;
-        String toString = COLLECTION_NAME_GALLERY_IMAGES + "/" + to;
-        String fromString = COLLECTION_NAME_GALLERY_IMAGES + "/" + from;
-//        Map<String, Object> bindVars = new MapBuilder().put("from", path).put("to", path).put("COLLECTION_NAME_GALLERY_IMAGES", COLLECTION_NAME_GALLERY_IMAGES).get();
-        Map<String, Object> bindVars = new MapBuilder().put("from", fromString).put("to", toString).get();
-        db.query(query, bindVars, null, BaseDocument.class);
-    }
-
     private Collection<File> getAllDirectories(Collection<File> dirs) throws IOException, NotAllowedException {
         Collection<File> allDirectories = new HashSet<>();
         dirs.forEach(dir -> allDirectories.addAll(listFilesAndDirs(dir, FileFilterUtils.falseFileFilter(), FileFilterUtils.directoryFileFilter())));
@@ -408,110 +415,5 @@ public class GallerySearchServiceImpl implements GallerySearchService, GalleryRo
         return allDirectories;
     }
 
-    private String getKey(File file) throws IOException {
-        return DigestUtils.sha256Hex(file.getCanonicalPath());
-    }
-
-    public static class GalleryDocument extends BaseDocument {
-
-        private enum FileType {
-            FILE,
-            DIRECTORY
-        }
-
-        private String key;
-
-        private String dateTaken;
-
-        private String path;
-
-        private FileType type;
-
-        private Double gpsLatitude;
-
-        private Double gpsLongitude;
-
-        private List<String> physicalLocations;
-
-        private String[] tags;
-
-        private String country;
-
-        public String getKey() {
-            return key;
-        }
-
-        public void setKey(String key) {
-            this.key = key;
-        }
-
-        public String getDateTaken() {
-            return dateTaken;
-        }
-
-        public void setDateTaken(String dateTaken) {
-            this.dateTaken = dateTaken;
-        }
-
-        public String getPath() {
-            return path;
-        }
-
-        public void setPath(String path) {
-            this.path = path;
-        }
-
-        public FileType getType() {
-            return type;
-        }
-
-        public void setType(FileType type) {
-            this.type = type;
-        }
-
-        public Double getGpsLatitude() {
-            return gpsLatitude;
-        }
-
-        public void setGpsLatitude(Double gpsLatitude) {
-            this.gpsLatitude = gpsLatitude;
-        }
-
-        public Double getGpsLongitude() {
-            return gpsLongitude;
-        }
-
-        public void setGpsLongitude(Double gpsLongitude) {
-            this.gpsLongitude = gpsLongitude;
-        }
-
-        public List<String> getPhysicalLocations() {
-            return physicalLocations;
-        }
-
-        public void setPhysicalLocations(List<String> physicalLocations) {
-            this.physicalLocations = physicalLocations;
-        }
-
-        public String[] getTags() {
-            return tags;
-        }
-
-        public void setTags(String[] tags) {
-            this.tags = tags;
-        }
-
-        public String getCountry() {
-            return country;
-        }
-
-        public void setCountry(String country) {
-            this.country = country;
-        }
-    }
-
-    public static void main(String[] args) throws Exception {
-        System.out.println(new GallerySearchServiceImpl().getKey(new File("/home/henrik/gallery-test-data/Bilder/2006-09 Graz")));
-    }
 }
 

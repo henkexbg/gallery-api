@@ -29,10 +29,13 @@ import java.io.InputStream;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 
 import com.github.henkexbg.gallery.service.GallerySearchService;
+import com.github.henkexbg.gallery.service.impl.GallerySearchServiceImpl;
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.io.input.BoundedInputStream;
 import org.apache.commons.lang3.StringUtils;
@@ -133,6 +136,10 @@ public class GalleryController {
 	 */
 	@RequestMapping(value = SERVICE_PATH + "**", method = RequestMethod.GET)
 	public @ResponseBody ListingContext query(HttpServletRequest servletRequest, @RequestParam(required = false, value = "searchTerm") String searchTerm) throws Exception {
+//		((GallerySearchServiceImpl) gallerySearchService).createOrUpdateOneDirectory(new File("/home/henrik/dev/gallery-test-data/Bilder"),
+//				List.of(new File("/home/henrik/dev/gallery-test-data/Bilder")));
+//		((GallerySearchServiceImpl) gallerySearchService).createOrUpdateAllDirectories();
+        //((GallerySearchServiceImpl) gallerySearchService).search("henrik", "pxl");
 		String path = extractPathFromPattern(servletRequest);
 		LOG.debug("Entering getListing(path={})", path);
 		String contextPath = servletRequest.getContextPath();

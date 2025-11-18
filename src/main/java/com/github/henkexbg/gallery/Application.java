@@ -20,11 +20,17 @@
  */
 package com.github.henkexbg.gallery;
 
+import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.github.henkexbg.gallery.bean.DbFile;
+import com.github.henkexbg.gallery.bean.Location;
+import org.h2gis.functions.factory.H2GISFunctions;
+import org.jdbi.v3.core.Jdbi;
+import org.jdbi.v3.core.mapper.reflect.BeanMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -32,12 +38,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.ImportResource;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import com.github.henkexbg.gallery.controller.model.ImageFormat;
+
+import javax.sql.DataSource;
 
 /**
  * Spring Boot starter class for the whole program. Also adds Spring web and
@@ -57,6 +66,9 @@ public class Application implements WebMvcConfigurer {
     public static void main(String[] args) {
         SpringApplication.run(Application.class, args);
     }
+
+    @Value("${gallery.h2.connectionString}")
+    private String h2ConnectionString;
 
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
@@ -102,5 +114,31 @@ public class Application implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**").allowedOrigins(allowedCorsOrigins).maxAge(86400);
     }
+
+    @Bean
+    public DataSource h2DataSource() throws Exception {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setDriverClassName("org.h2.Driver");
+        dataSource.setUrl(h2ConnectionString);
+        Connection connection = dataSource.getConnection();
+        H2GISFunctions.load(connection);
+        return dataSource;
+    }
+
+    @Bean
+    public Jdbi jdbi(DataSource dataSource) {
+        Jdbi jdbi = Jdbi.create(dataSource);
+        jdbi.registerRowMapper(BeanMapper.factory(Location.class));
+        jdbi.registerRowMapper(BeanMapper.factory(DbFile.class));
+        return jdbi;
+    }
+
+//    @Bean
+//    public DataSource dataSource() {
+//        return new EmbeddedDatabaseBuilder().
+//                .setType(EmbeddedDatabaseType.H2)
+//                .addScript("classpath:jdbc/schema.sql")
+//                .addScript("classpath:jdbc/test-data.sql").build();
+//    }
 
 }

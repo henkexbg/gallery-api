@@ -102,24 +102,11 @@ public class GallerySearchServiceImplTest {
             LOG.info("One gallery file: {}", oneGalleryFile);
         }
     }
-
-    @Test
-    @Ignore
-    public void testUpdateDirs() throws Exception {
-        ((GallerySearchServiceImpl) gallerySearchService).createOrUpdateAllDirectories();
-    }
-
 //    @Test
 //    public void testDeleteEdge() {
 //        ((GallerySearchServiceImpl) gallerySearchService).deleteOneEdge(null);
 //    }
 
-
-    @Test
-    @Ignore
-    public void testDeleteOneVertexWithEdges() throws IOException {
-        ((GallerySearchServiceImpl) gallerySearchService).deleteOneVertexWithEdges(new File("/home/henrik/dev/gallery-test-data/Bilder/test7/DSCF4595.JPG"));
-    }
 
 
     @Configuration
