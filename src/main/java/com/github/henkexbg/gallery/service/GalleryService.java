@@ -423,6 +423,16 @@ public class GalleryService {
     }
 
     /**
+     * Checks whether file has an allowed file extension. Checked in a case insensitive way.
+     *
+     * @param file File
+     * @return True if allowed
+     */
+    public boolean isAllowedExtension(File file) {
+        return allowedFileExtensions.contains(getExtension(file.getName()).toLowerCase());
+    }
+
+    /**
      * Creates a {@link GalleryFile} for the given file. Public path is required as
      * multiple public paths can point to the same actual file. This method should
      * always be given a file with an approved image or video, and never a
@@ -448,16 +458,6 @@ public class GalleryService {
     }
 
     /**
-     * Checks whether file has an allowed file extension. Checked in a case insensitive way.
-     *
-     * @param file File
-     * @return True if allowed
-     */
-    public boolean isAllowedExtension(File file) {
-        return allowedFileExtensions.contains(getExtension(file.getName()).toLowerCase());
-    }
-
-    /**
      * As {@link #createGalleryDirectory(String, File, String)}, but uses the
      * directory name as gallery directory name.
      *
@@ -466,7 +466,8 @@ public class GalleryService {
      * @return A {@link GalleryDirectory} for the given parameters
      */
     public GalleryDirectory createGalleryDirectory(String publicPath, File actualDir) {
-        return createGalleryDirectory(publicPath, actualDir, actualDir.getName());
+        String dirName = publicPath.contains("/") ? actualDir.getName() :  publicPath;
+        return createGalleryDirectory(publicPath, actualDir, dirName);
     }
 
 

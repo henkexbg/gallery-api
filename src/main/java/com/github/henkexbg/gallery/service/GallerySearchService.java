@@ -63,7 +63,7 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         }
         LOG.debug("Performing search with publicPath={}, basePaths={} searchTerm={}", publicPath, basePathSearchTerms, searchTerm);
 
-        List<String> searchTerms = Arrays.stream(searchTerm.split("\\s")).map(String::trim).map(String::toLowerCase).map(s -> s + "%").toList();
+        List<String> searchTerms = searchTerm != null ? Arrays.stream(searchTerm.split("\\s")).map(String::trim).map(String::toLowerCase).map(s -> s + "%").toList() : Collections.emptyList();
 
         // Not pretty but we need to build a prepared statement with a dynamic number of paths and search terms
         StringBuilder sb = new StringBuilder("SELECT * FROM GALLERY_FILE f WHERE (");
@@ -71,12 +71,15 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
             if (i > 0) sb.append(" OR ");
             sb.append("f.PATH_ON_DISK LIKE :path%s".formatted(i));
         }
-        sb.append(") AND f.ID IN (SELECT DISTINCT t.FILE_ID FROM TAG t WHERE ");
-        for (int i = 0; i < searchTerms.size(); i++) {
-            if (i > 0) sb.append(" OR ");
-            sb.append("t.TEXT LIKE :term%s".formatted(i));
-        }
         sb.append(")");
+        if (!searchTerms.isEmpty()) {
+            sb.append(" AND f.ID IN (SELECT DISTINCT t.FILE_ID FROM TAG t WHERE ");
+            for (int i = 0; i < searchTerms.size(); i++) {
+                if (i > 0) sb.append(" OR ");
+                sb.append("t.TEXT LIKE :term%s".formatted(i));
+            }
+            sb.append(")");
+        }
 
         String fullQuery = sb.toString();
         List<DbFile> list = new ArrayList<>();
@@ -110,8 +113,7 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         LOG.debug("Found {} directories to watch for search service", rootDirs.size());
         DirectoryWatcher directoryWatcher;
         try {
-            directoryWatcher = DirectoryWatcher.builder()
-                    .paths(rootDirs) // or use paths(directoriesToWatch)
+            directoryWatcher = DirectoryWatcher.builder().paths(rootDirs) // or use paths(directoriesToWatch)
                     .listener(event -> {
                         switch (event.eventType()) {
                             case CREATE, MODIFY: /* file created */
@@ -121,8 +123,7 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
                                 onFilesUpdated(Collections.emptySet(), Set.of(event.path().toFile()));
                                 break;
                         }
-                    })
-                    .fileHashing(false) // defaults to true
+                    }).fileHashing(false) // defaults to true
                     // .logger(logger) // defaults to LoggerFactory.getLogger(DirectoryWatcher.class)
                     // .watchService(watchService) // defaults based on OS to either JVM WatchService or the JNA macOS WatchService
                     .build();
@@ -264,8 +265,7 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
             String parentPath = rootDirectories.contains(directory) ? null : directory.getParentFile().getCanonicalPath();
             AtomicLong atomicDirectoryPk = new AtomicLong();
             jdbi.useHandle(handle -> {
-                Update updateQueryObj = handle.createUpdate(mergeQueryChildDir).bind("path_on_disk", directoryPath)
-                        .bind("last_modified", new Timestamp(directory.lastModified()));
+                Update updateQueryObj = handle.createUpdate(mergeQueryChildDir).bind("path_on_disk", directoryPath).bind("last_modified", new Timestamp(directory.lastModified()));
 
                 if (parentPath != null) {
                     Integer parentId = handle.createQuery(findParentQuery).bind("path_on_disk", parentPath).mapTo(Integer.class).one();
@@ -279,8 +279,7 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
 
                 handle.createUpdate(deleteFilenamePartsQuery).bind("file_id", directoryPk).execute();
                 for (int i = 0; i < filenameParts.size(); i++) {
-                    handle.createUpdate(updateFilenamePartsQuery).bind("file_id", directoryPk).bind("part_index", i)
-                            .bind("part", filenameParts.get(i)).execute();
+                    handle.createUpdate(updateFilenamePartsQuery).bind("file_id", directoryPk).bind("part_index", i).bind("part", filenameParts.get(i)).execute();
                 }
             });
             updateFilenameTags(directory, atomicDirectoryPk.get());
@@ -323,21 +322,14 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
             String point = metadata.gpsLatitude() != null && metadata.gpsLongitude() != null ? "POINT(%s %s)".formatted(metadata.gpsLongitude(), metadata.gpsLatitude()) : null;
             String contentType = getContentType(file);
             AtomicLong atomicFileId = new AtomicLong();
-            Location nearestLocation = point != null ? jdbi.withHandle(handle ->
-                    handle.createQuery(findNearestLocationQuery).bind("location", point).mapTo(Location.class).one()
-            ) : null;
+            Location nearestLocation = point != null ? jdbi.withHandle(handle -> handle.createQuery(findNearestLocationQuery).bind("location", point).mapTo(Location.class).one()) : null;
 
             jdbi.useHandle(handle -> {
                 Integer parentId = handle.createQuery(findParentQuery).bind("path_on_disk", parentPath).mapTo(Integer.class).one();
                 if (parentId == null) {
                     throw new IOException("File %s did not have a valid parent directory".formatted(file.getCanonicalPath()));
                 }
-                Long fileId = handle.createUpdate(mergeQuery).bind("parent_id", parentId).bind("path_on_disk", file.getCanonicalPath())
-                        .bind("file_type", isVideo(contentType) ? "video" : "image").bind("content_type", contentType)
-                        .bind("location", point)
-                        .bind("date_taken", metadata.dateTaken() != null ? new Timestamp(metadata.dateTaken().toEpochMilli()) : null)
-                        .bind("nearest_location_id", nearestLocation != null ? nearestLocation.getPk() : null)
-                        .bind("last_modified", new Timestamp(file.lastModified())).executeAndReturnGeneratedKeys().mapTo(Long.class).one();
+                Long fileId = handle.createUpdate(mergeQuery).bind("parent_id", parentId).bind("path_on_disk", file.getCanonicalPath()).bind("file_type", isVideo(contentType) ? "video" : "image").bind("content_type", contentType).bind("location", point).bind("date_taken", metadata.dateTaken() != null ? new Timestamp(metadata.dateTaken().toEpochMilli()) : null).bind("nearest_location_id", nearestLocation != null ? nearestLocation.getPk() : null).bind("last_modified", new Timestamp(file.lastModified())).executeAndReturnGeneratedKeys().mapTo(Long.class).one();
 
                 atomicFileId.set(fileId);
             });
