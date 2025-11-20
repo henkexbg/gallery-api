@@ -24,6 +24,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
 
 import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
+import com.github.henkexbg.gallery.service.GalleryService;
 import com.github.henkexbg.gallery.service.ImageResizeService;
 import org.junit.*;
 import org.mockito.Mock;
@@ -52,22 +53,22 @@ public class GalleryServiceImplTest {
     @Mock
     private Map<String, File> rootPaths;
 
-    private GalleryServiceImpl galleryService;
+    private GalleryService galleryService;
 
     @Before
     public void betweenTests() throws Exception {
-        galleryService = new GalleryServiceImpl();
-        galleryService.setResizeDir(RESIZE_DIR);
-        Set<String> allowedFileExtensions = new HashSet<>();
-        allowedFileExtensions.add("jpg");
-        MockitoAnnotations.initMocks(this);
-        galleryService.setGalleryAuthorizationService(galleryAuthorizationService);
-        galleryService.setImageResizeService(imageResizeService);
-        galleryService.setAllowedFileExtensions(allowedFileExtensions);
-        when(galleryAuthorizationService.getRootPathsForCurrentUser()).thenReturn(rootPaths);        
-        if (!TEST_ORIGINAL_IMAGE.exists()) {
-            TEST_ORIGINAL_IMAGE.createNewFile();
-        }
+//        galleryService = new GalleryService();
+//        galleryService.setResizeDir(RESIZE_DIR);
+//        Set<String> allowedFileExtensions = new HashSet<>();
+//        allowedFileExtensions.add("jpg");
+//        MockitoAnnotations.initMocks(this);
+//        galleryService.setGalleryAuthorizationService(galleryAuthorizationService);
+//        galleryService.setImageResizeService(imageResizeService);
+//        galleryService.setAllowedFileExtensions(allowedFileExtensions);
+//        when(galleryAuthorizationService.getRootPathsForCurrentUser()).thenReturn(rootPaths);
+//        if (!TEST_ORIGINAL_IMAGE.exists()) {
+//            TEST_ORIGINAL_IMAGE.createNewFile();
+//        }
     }
 
     @Test

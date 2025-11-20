@@ -27,21 +27,19 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLDecoder;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 
+import com.github.henkexbg.gallery.bean.SearchResult;
 import com.github.henkexbg.gallery.service.GallerySearchService;
-import com.github.henkexbg.gallery.service.impl.GallerySearchServiceImpl;
+import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.io.input.BoundedInputStream;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
@@ -87,40 +85,20 @@ public class GalleryController {
 
 	private static final String SERVICE_PATH = "/service/";
 
+    @Resource
 	private List<ImageFormat> imageFormats;
 
+    @Resource
 	private GalleryService galleryService;
 
+    @Resource
 	private GallerySearchService gallerySearchService;
 
+    @Value("${gallery.allowCustomImageSizes}")
 	private boolean allowCustomImageSizes = false;
 
+    @Value("${gallery.mediaResourcesCacheHeader}")
 	private String mediaResourcesCacheHeader;
-
-	@Autowired
-	public void setGalleryService(GalleryService galleryService) {
-		this.galleryService = galleryService;
-	}
-
-	@Autowired
-	public void setGallerySearchService(GallerySearchService gallerySearchService) {
-		this.gallerySearchService = gallerySearchService;
-	}
-
-	@Autowired
-	public void setImageFormats(List<ImageFormat> imageFormats) {
-		this.imageFormats = imageFormats;
-	}
-
-	@Value("${gallery.allowCustomImageSizes}")
-	public void setAllowCustomImageSizes(boolean allowCustomImageSizes) {
-		this.allowCustomImageSizes = allowCustomImageSizes;
-	}
-
-	@Value("${gallery.mediaResourcesCacheHeader}")
-	public void setMediaResourcesCacheHeader(String mediaResourcesCacheHeader) {
-		this.mediaResourcesCacheHeader = mediaResourcesCacheHeader;
-	}
 
 	/**
 	 * Retrieves the listing for a given path (which can be empty). The response can
@@ -148,23 +126,9 @@ public class GalleryController {
 			listingContext.setAllowCustomImageSizes(allowCustomImageSizes);
 			listingContext.setImageFormats(imageFormats);
 			listingContext.setVideoFormats(galleryService.getAvailableVideoModes());
-		if (StringUtils.isBlank(searchTerm)) {
-			if (StringUtils.isBlank(path)) {
-				listingContext.setDirectories(
-						convertToGalleryDirectoryHolders(contextPath, galleryService.getRootDirectories()));
-			} else {
-				listingContext.setCurrentPathDisplay(path);
-				List<GalleryFile> directoryListing = galleryService.getDirectoryListingFiles(path);
-				if (directoryListing == null) {
-					throw new ResourceNotFoundException();
-				}
-				listingContext.setMedia(convertToGalleryFileHolders(contextPath, directoryListing));
-				listingContext.setDirectories(
-						convertToGalleryDirectoryHolders(contextPath, galleryService.getDirectories(path)));
-			}
-		} else {
-			listingContext.setMedia(convertToGalleryFileHolders(contextPath, gallerySearchService.search(path, searchTerm)));
-		}
+            SearchResult searchResult = gallerySearchService.search(path, searchTerm);
+            listingContext.setMedia(convertToGalleryFileHolders(contextPath, searchResult.files()));
+            listingContext.setDirectories(convertToGalleryDirectoryHolders(contextPath, searchResult.directories()));
 		LOG.debug("{} media files found", listingContext.getMedia() != null ? listingContext.getMedia().size() : 0);
 		return listingContext;
 		} catch (NotAllowedException noe) {
@@ -250,7 +214,7 @@ public class GalleryController {
 			int widthInt = Integer.parseInt(width);
 			int heightInt = Integer.parseInt(height);
 			if (widthInt <= 0 || heightInt <= 0) {
-				LOG.debug("Won't try to scale an image do negative dimensions...", path);
+				LOG.debug("Won't try to scale an image to negative dimensions for {}", path);
 				throw new ResourceNotFoundException();
 			}
 			GalleryFile galleryFile = galleryService.getImage(path, widthInt, heightInt);
@@ -364,7 +328,7 @@ public class GalleryController {
 				: HttpStatus.PARTIAL_CONTENT;
 		LOG.debug("Returning {}. Status: {}, content-type: {}, {}: {}, contentLength: {}", file, status, contentType,
 				HttpHeaders.CONTENT_RANGE, responseHeaders.get(HttpHeaders.CONTENT_RANGE), contentLength);
-		return new ResponseEntity<InputStreamResource>(inputStreamResource, responseHeaders, status);
+		return new ResponseEntity<>(inputStreamResource, responseHeaders, status);
 	}
 
 	/**
@@ -501,7 +465,7 @@ public class GalleryController {
 		AntPathMatcher apm = new AntPathMatcher();
 		String finalPath = apm.extractPathWithinPattern(bestMatchPattern, path);
 		// A recent Spring update seems to have changed the behaviour. We now need to URL-decode the request path
-		return URLDecoder.decode(finalPath, Charset.forName("UTF-8"));
+		return URLDecoder.decode(finalPath, StandardCharsets.UTF_8);
 	}
 
 	/**

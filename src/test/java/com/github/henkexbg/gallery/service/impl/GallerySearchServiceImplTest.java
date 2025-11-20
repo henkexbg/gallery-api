@@ -93,15 +93,15 @@ public class GallerySearchServiceImplTest {
 //        gallerySearch.searchTest();
 //    }
 
-    @Test
-    @Ignore
-    public void testQuery() throws Exception {
-        galleryAuthorizationService.loginAdminUser();
-        List<GalleryFile> searchResult = gallerySearchService.search(null, "Australia");
-        for (GalleryFile oneGalleryFile : searchResult) {
-            LOG.info("One gallery file: {}", oneGalleryFile);
-        }
-    }
+//    @Test
+//    @Ignore
+//    public void testQuery() throws Exception {
+//        galleryAuthorizationService.loginAdminUser();
+//        List<GalleryFile> searchResult = gallerySearchService.search(null, "Australia");
+//        for (GalleryFile oneGalleryFile : searchResult) {
+//            LOG.info("One gallery file: {}", oneGalleryFile);
+//        }
+//    }
 //    @Test
 //    public void testDeleteEdge() {
 //        ((GallerySearchServiceImpl) gallerySearchService).deleteOneEdge(null);

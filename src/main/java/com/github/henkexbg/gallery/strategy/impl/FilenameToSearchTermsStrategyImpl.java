@@ -1,11 +1,13 @@
 package com.github.henkexbg.gallery.strategy.impl;
 
 import com.github.henkexbg.gallery.strategy.FilenameToSearchTermsStrategy;
+import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 
+@Component("filenameToSearchTermsStrategy")
 public class FilenameToSearchTermsStrategyImpl implements FilenameToSearchTermsStrategy {
 
     @Override

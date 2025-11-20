@@ -33,11 +33,14 @@ import java.util.concurrent.TimeUnit;
 
 
 import jakarta.annotation.PreDestroy;
+import jakarta.annotation.Resource;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.henkexbg.gallery.service.VideoConversionService;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 /**
  * Implementation of the {@link VideoConversionService}. This class assumes that
@@ -50,21 +53,27 @@ import com.github.henkexbg.gallery.service.VideoConversionService;
  * @author Henrik Bjerne
  *
  */
+@Component("videoConversionService")
 public class VideoConversionServiceImpl implements VideoConversionService {
 
     private final Logger LOG = LoggerFactory.getLogger(getClass());
 
-    private Map<String, String> conversionModes;
+    @Resource
+    private Map<String, String> videoConversionModes;
 
+    @Value("${gallery.videoConversion.maxWaitTimeSeconds}")
     private int maxWaitTimeSeconds = 1000;
 
+    @Value("${gallery.videoConversion.binary}")
     private String externalBinaryPath;
 
-    private Set<Thread> activeThreads = new HashSet<>();
-
+    @Value("${gallery.videoConversion.imageCommandTemplate}")
     private String imageCommandTemplate;
 
+    @Value("${gallery.videoConversion.externalProcessErrorLogFile}")
     private String externalProcessErrorLogFile;
+
+    private final Set<Thread> activeThreads = new HashSet<>();
 
     /**
      * This sets a map of conversion modes. The name will be the name of the
@@ -76,10 +85,10 @@ public class VideoConversionServiceImpl implements VideoConversionService {
      * <br>
      * EXAMPLE; The following command template works for avconv: %s,-i,%s,-strict,experimental,%s
      *
-     * @param conversionModes A map of conversion modes.
+     * @param videoConversionModes A map of conversion modes.
      */
-    public void setConversionModes(Map<String, String> conversionModes) {
-        this.conversionModes = conversionModes;
+    public void setVideoConversionModes(Map<String, String> videoConversionModes) {
+        this.videoConversionModes = videoConversionModes;
     }
 
     public void setMaxWaitTimeSeconds(int maxWaitTimeSeconds) {
@@ -100,7 +109,7 @@ public class VideoConversionServiceImpl implements VideoConversionService {
 
     @Override
     public Collection<String> getAvailableVideoModes() {
-        Set<String> conversionModeNames = conversionModes != null ? new HashSet<>(conversionModes.keySet()) : Collections.emptySet();
+        Set<String> conversionModeNames = videoConversionModes != null ? new HashSet<>(videoConversionModes.keySet()) : Collections.emptySet();
         LOG.debug("Returning conversion modes: {}", conversionModeNames);
         return conversionModeNames;
     }
@@ -120,7 +129,7 @@ public class VideoConversionServiceImpl implements VideoConversionService {
     /**
      * Executes a command. The actual command has already been configured and
      * is passed via the processParams parameter. These will be passed to a
-     * @{@link ProcessBuilder} that takes care of the execution. This is not a
+     * {@link ProcessBuilder} that takes care of the execution. This is not a
      * generic method and it assumes that a file is to be generated to the
      * given newFile parameter.
      * @param newFile New file to be generated
@@ -171,7 +180,7 @@ public class VideoConversionServiceImpl implements VideoConversionService {
                 throw new IOException(errorMessage);
             }
             long duration = System.currentTimeMillis() - startTime;
-            LOG.debug("Time in milliseconds to generate {}: {}", newFile.toString(), duration);
+            LOG.debug("Time in milliseconds to generate {}: {}", newFile, duration);
         } catch (InterruptedException ie) {
             cleanupFailure(pr, newFile);
             LOG.error("Was interrupted while waiting for conversion. Throwing IOException");
@@ -182,7 +191,7 @@ public class VideoConversionServiceImpl implements VideoConversionService {
     }
 
     private List<String> generateCommandParamList(File origVideo, File newVideo, String conversionMode) throws IOException {
-        String commandTemplate = conversionModes.get(conversionMode);
+        String commandTemplate = videoConversionModes.get(conversionMode);
         if (StringUtils.isBlank(commandTemplate)) {
             String errorMessage = String.format("Unknown conversion mode %s", commandTemplate);
             throw new IOException(errorMessage);

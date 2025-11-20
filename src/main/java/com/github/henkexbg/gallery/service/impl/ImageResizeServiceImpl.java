@@ -41,6 +41,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.henkexbg.gallery.service.ImageResizeService;
+import org.springframework.stereotype.Component;
 
 /**
  * Java-only implementation of {@link ImageResizeService}. Uses AWT libraries
@@ -49,6 +50,7 @@ import com.github.henkexbg.gallery.service.ImageResizeService;
  * @author Henrik Bjerne
  *
  */
+@Component
 public class ImageResizeServiceImpl implements ImageResizeService {
 
 	private static final int INPUT_STREAM_BUFFER_SIZE = 65536;

@@ -26,7 +26,7 @@ public class VideoConversionServiceTest {
 
         VideoConversionServiceImpl videoConversionService = new VideoConversionServiceImpl();
         videoConversionService.setExternalBinaryPath("C:/Program Files/ffmpeg-20180202-caaa40d-win64-static/bin/ffmpeg.exe");
-        videoConversionService.setConversionModes(conversionModes);
+        videoConversionService.setVideoConversionModes(conversionModes);
         File inputFile = new File("C:/temp/MVI_0647.MP4");
         File outputFile = new File("C:/temp/video.mp4");
         videoConversionService.convertVideo(inputFile, outputFile, videoConversionService.getAvailableVideoModes().iterator().next());

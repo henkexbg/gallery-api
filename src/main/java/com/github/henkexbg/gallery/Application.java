@@ -37,7 +37,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.ImportResource;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -56,7 +55,6 @@ import javax.sql.DataSource;
  * @author Henrik
  */
 @SpringBootApplication
-@ImportResource("classpath:applicationContext.xml")
 @Configuration
 @EnableWebSecurity
 public class Application implements WebMvcConfigurer {
@@ -89,8 +87,7 @@ public class Application implements WebMvcConfigurer {
     @Bean("imageFormats")
     @ConfigurationProperties(prefix = "gallery.image-formats")
     public List<ImageFormat> getImageFormats() {
-        List<ImageFormat> imageFormats = new ArrayList<>();
-        return imageFormats;
+        return new ArrayList<>();
     }
 
     /**
@@ -103,8 +100,7 @@ public class Application implements WebMvcConfigurer {
     @Bean("videoConversionModes")
     @ConfigurationProperties(prefix = "gallery.video.conversion-modes")
     public Map<String, String> getVideoConversionModes() {
-        Map<String, String> vdeoConversionModes = new HashMap<>();
-        return vdeoConversionModes;
+        return new HashMap<>();
     }
 
     /**

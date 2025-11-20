@@ -9,6 +9,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
@@ -20,6 +21,7 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 
+@Service("metadataExtractionService")
 public class MetadataExtractionServiceImpl implements MetadataExtractionService {
 
     private static final String CREATE_DATE_DATE_FORMAT = "yyyy:MM:dd HH:mm:ss";
@@ -43,7 +45,7 @@ public class MetadataExtractionServiceImpl implements MetadataExtractionService 
         exifTool = new ExifToolBuilder().withPath(exiftoolPath).enableStayOpen().build();
     }
 
-
+    @Override
     public FileMetaData getMetadata(File file) throws IOException {
         List<Tag> tags = List.of(StandardTag.CREATE_DATE, StandardTag.GPS_LATITUDE, StandardTag.GPS_LONGITUDE);
         Map<Tag, String> imageMeta = exifTool.getImageMeta(file, tags);
@@ -84,7 +86,9 @@ public class MetadataExtractionServiceImpl implements MetadataExtractionService 
     public void onClose() {
         try {
             exifTool.close();
-        } catch (Exception e) {}
+        } catch (Exception e) {
+            // Intentionally empty
+        }
     }
 
 }

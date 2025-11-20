@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import jakarta.annotation.Resource;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -41,6 +42,8 @@ import com.github.henkexbg.gallery.bean.GalleryFile;
 import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
 import com.github.henkexbg.gallery.service.GalleryService;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 /**
  * Batch conversion job of videos. This was introduced because computers are
@@ -51,21 +54,25 @@ import com.github.henkexbg.gallery.service.exception.NotAllowedException;
  * @author Henrik Bjerne
  *
  */
+@Component
 public class VideoBatchConversionJob {
 
     private static final String BLACK_LISTED_VIDEOS_FILE_ENCODING = "UTF-8";
 
     private final Logger LOG = LoggerFactory.getLogger(getClass());
 
+    @Resource
     private GalleryService galleryService;
 
+    @Resource
     private GalleryAuthorizationService galleryAuthorizationService;
+
+    @Value("${gallery.videoConversion.blacklistedVideosFile}")
+    private String blacklistedVideosFilePath;
 
     private int initialDelaySeconds = 10;
 
     private int waitPeriodSeconds = 120;
-
-    private String blacklistedVideosFilePath;
 
     private boolean running = false;
 
@@ -96,7 +103,7 @@ public class VideoBatchConversionJob {
     @PostConstruct
     public void startBatchService() {
         executor = Executors.newScheduledThreadPool(1);
-        Runnable batchJob = () -> runBatchJob();
+        Runnable batchJob = this::runBatchJob;
         executor.scheduleAtFixedRate(batchJob, initialDelaySeconds, waitPeriodSeconds, TimeUnit.SECONDS);
     }
 
@@ -154,12 +161,12 @@ public class VideoBatchConversionJob {
     }
 
     private List<String> getBlacklistedVideoPaths() {
-        File blacklistedVideosFile = null;
+        File blacklistedVideosFile;
         if (StringUtils.isNotBlank(blacklistedVideosFilePath) && (blacklistedVideosFile = new File(blacklistedVideosFilePath)).exists()) {
             try {
                 return FileUtils.readLines(blacklistedVideosFile, BLACK_LISTED_VIDEOS_FILE_ENCODING);
             } catch (IOException ioe) {
-                LOG.error("Error when retrieving list of blacklisted videos: {}. Returning empty list", ioe);
+                LOG.error("Error when retrieving list of blacklisted videos: {}. Returning empty list", blacklistedVideosFile, ioe);
             }
         }
         return Collections.emptyList();
@@ -168,11 +175,11 @@ public class VideoBatchConversionJob {
     private void addBlacklistedVideo(String videoPath) {
         if (StringUtils.isNotBlank(blacklistedVideosFilePath)) {
             try {
-                File blacklistedVideosFile =  new File(blacklistedVideosFilePath);
+                File blacklistedVideosFile = new File(blacklistedVideosFilePath);
                 LOG.info("Blacklisting video {}, that failed during conversion", videoPath);
                 FileUtils.write(blacklistedVideosFile, videoPath + System.lineSeparator(), BLACK_LISTED_VIDEOS_FILE_ENCODING, true);
             } catch (IOException ioe) {
-                LOG.error("Error when adding {} as blacklisted video: {}. Skipping.", videoPath, ioe);
+                LOG.error("Error when adding {} as blacklisted video. Skipping.", videoPath, ioe);
             }
         }
     }

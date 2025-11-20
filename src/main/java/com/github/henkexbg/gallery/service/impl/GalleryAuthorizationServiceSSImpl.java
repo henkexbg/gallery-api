@@ -23,6 +23,7 @@ package com.github.henkexbg.gallery.service.impl;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Serial;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -38,6 +39,7 @@ import com.github.henkexbg.gallery.bean.GalleryRootDir;
 import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
 import com.github.henkexbg.gallery.job.GalleryRootDirChangeListener;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
+import org.springframework.stereotype.Component;
 
 /**
  * Implementation of the {@link GalleryAuthorizationService} using Spring
@@ -50,6 +52,7 @@ import com.github.henkexbg.gallery.service.exception.NotAllowedException;
  * @author Henrik Bjerne
  *
  */
+@Component("galleryAuthorizationService")
 public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationService, GalleryRootDirChangeListener {
 
 	private final Logger LOG = LoggerFactory.getLogger(getClass());
@@ -61,7 +64,7 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
 	Map<String, Map<String, File>> rootPathsPerRoleMap = new HashMap<>();
 
 	@Override
-	public File getRealFileOrDir(String publicPath) throws IOException, NotAllowedException {
+	public File getRealFileOrDir(String publicPath) throws NotAllowedException {
 		LOG.debug("Entering getRealFileOrDir(publicPath={})", publicPath);
 		if (StringUtils.isBlank(publicPath)) {
 			throw new NotAllowedException("Could not extract code from empty path!");
@@ -87,13 +90,13 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
 			}
 		}
 		if (baseDir == null) {
-			String errorMessage = String.format("Could not find basedir for base dir code {}", baseDirCode);
+			String errorMessage = String.format("Could not find basedir for base dir code %s", baseDirCode);
 			LOG.error(errorMessage);
 			throw new NotAllowedException(errorMessage);
 		}
-		File file = null;
+		File file;
 		if (relativePathStartIndex >= 0) {
-			String relativePath = publicPath.substring(relativePathStartIndex, publicPath.length());
+			String relativePath = publicPath.substring(relativePathStartIndex);
 			LOG.debug("Relative path: {}", relativePath);
 			file = new File(baseDir, relativePath);
 			if (!isCanonicalChild(baseDir, file)) {
@@ -114,7 +117,7 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
 	@Override
 	public void onGalleryRootDirsUpdated(Collection<GalleryRootDir> galleryRootDirs) {
 		LOG.debug("Updating rootDirs");
-		Collection<String> allRoles = galleryRootDirs.stream().map(r -> r.getRole()).collect(Collectors.toSet());
+		Collection<String> allRoles = galleryRootDirs.stream().map(GalleryRootDir::getRole).collect(Collectors.toSet());
 		Map<String, Map<String, File>> rootPathsPerRoleMap = new HashMap<>();
 		for (String oneRole : allRoles) {
 			Map<String, File> rootPathsForRoles = galleryRootDirs.stream().filter(rd -> oneRole.equals(rd.getRole()))
@@ -155,7 +158,7 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
 	private Collection<String> getCurrentUserRoles() {
 		Collection<? extends GrantedAuthority> authorities = SecurityContextHolder.getContext().getAuthentication()
 				.getAuthorities();
-		Collection<String> currentUserRoles = authorities.stream().map(e -> e.getAuthority())
+		Collection<String> currentUserRoles = authorities.stream().map(GrantedAuthority::getAuthority)
 				.collect(Collectors.toSet());
 		LOG.debug("Roles for current user: {}", currentUserRoles);
 		return currentUserRoles;
@@ -165,7 +168,8 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
 	public void loginAdminUser() {
 		Authentication auth = new Authentication() {
 
-			private static final long serialVersionUID = -7444637463199474476L;
+			@Serial
+            private static final long serialVersionUID = -7444637463199474476L;
 
 			@Override
 			public String getName() {
@@ -174,7 +178,7 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
 
 			@Override
 			public Collection<? extends GrantedAuthority> getAuthorities() {
-				return rootPathsPerRoleMap.keySet().stream().map(role -> new SimpleGrantedAuthority(role))
+				return rootPathsPerRoleMap.keySet().stream().map(SimpleGrantedAuthority::new)
 						.collect(Collectors.toList());
 			}
 

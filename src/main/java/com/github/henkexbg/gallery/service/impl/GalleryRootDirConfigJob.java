@@ -39,11 +39,14 @@ import java.util.Properties;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.henkexbg.gallery.job.GalleryRootDirChangeListener;
 import com.github.henkexbg.gallery.bean.GalleryRootDir;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 /**
  * Job rather than a service. It listens continuously to changes to the given
@@ -53,15 +56,18 @@ import com.github.henkexbg.gallery.bean.GalleryRootDir;
  * @author Henrik Bjerne
  *
  */
+@Component
 public class GalleryRootDirConfigJob {
 
     private final Logger LOG = LoggerFactory.getLogger(getClass());
 
+    @Resource
+    private Collection<GalleryRootDirChangeListener> galleryRootDirChangeListeners;
+
+    @Value("${gallery.groupDirAuth.propertiesFile}")
     private File configFile;
 
     private WatchService watcher;
-
-    private Collection<GalleryRootDirChangeListener> galleryRootDirChangeListeners;
 
     @PostConstruct
     public void setUp() throws IOException {
@@ -70,9 +76,7 @@ public class GalleryRootDirConfigJob {
         updateConfigFromFile();
 
         // Kick of watcher thread
-        Runnable fileWatcher = () -> {
-            watchForChanges();
-        };
+        Runnable fileWatcher = this::watchForChanges;
         new Thread(fileWatcher).start();
     }
 
