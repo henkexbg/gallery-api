@@ -26,6 +26,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.github.henkexbg.gallery.bean.DbFile;
 import com.github.henkexbg.gallery.bean.Location;
 import org.h2gis.functions.factory.H2GISFunctions;
@@ -39,7 +43,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -59,23 +62,27 @@ import javax.sql.DataSource;
 @EnableWebSecurity
 public class Application implements WebMvcConfigurer {
 
-    private String allowedCorsOrigins = null;
+//    private String allowedCorsOrigins = null;
+
+    @Value("${gallery.h2.connectionString}")
+    private String h2ConnectionString;
 
     public static void main(String[] args) {
         SpringApplication.run(Application.class, args);
     }
-
-    @Value("${gallery.h2.connectionString}")
-    private String h2ConnectionString;
 
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
         registry.addViewController("/").setViewName("forward:/index.html");
     }
 
-    @Value("${gallery.web.allowedOrigins}")
-    public void setAllowedCorsOrigins(String allowedCorsOrigins) {
-        this.allowedCorsOrigins = allowedCorsOrigins;
+    @Bean("objectMapper")
+    public ObjectMapper objectMapper() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+        return objectMapper;
     }
 
     /**
@@ -101,14 +108,6 @@ public class Application implements WebMvcConfigurer {
     @ConfigurationProperties(prefix = "gallery.video.conversion-modes")
     public Map<String, String> getVideoConversionModes() {
         return new HashMap<>();
-    }
-
-    /**
-     * Configure CORS. Allowed origin comes from property.
-     */
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**").allowedOrigins(allowedCorsOrigins).maxAge(86400);
     }
 
     @Bean

@@ -1,36 +1,26 @@
 /**
  * Copyright (c) 2016 Henrik Bjerne
  * <p>
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:The above copyright
- * notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:The above copyright notice and this permission notice shall be included in all copies or substantial portions of
+ * the Software.
  * <p>
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
+ * ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
+ * THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 package com.github.henkexbg.gallery.controller;
 
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-
 
 import com.github.henkexbg.gallery.bean.SearchResult;
 import com.github.henkexbg.gallery.service.GallerySearchService;
@@ -38,6 +28,7 @@ import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.io.input.BoundedInputStream;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,10 +38,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.util.AntPathMatcher;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.WebRequest;
-import org.springframework.web.servlet.HandlerMapping;
 
 import com.github.henkexbg.gallery.bean.GalleryDirectory;
 import com.github.henkexbg.gallery.bean.GalleryFile;
@@ -65,14 +54,10 @@ import com.github.henkexbg.gallery.service.GalleryService;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 
 /**
- * This class contains the actual web endpoints for this application. Most of
- * the logic revolves around extracting parameters, calling the appropriate
- * methods on {@link GalleryService} (which deals with all the business logic),
- * and then returning the relevant data. Most methods deal with returning JSON
- * responses, but there are also endpoints for returning images or ranged parts
- * of a video.<br>
- * Actual service logic is delegated to service class. This class is more
- * concerned with handling web-related things, such as taking input from the
+ * This class contains the actual web endpoints for this application. Most of the logic revolves around extracting parameters, calling the
+ * appropriate methods on {@link GalleryService} (which deals with all the business logic), and then returning the relevant data. Most
+ * methods deal with returning JSON responses, but there are also endpoints for returning images or ranged parts of a video.<br> Actual
+ * service logic is delegated to service class. This class is more concerned with handling web-related things, such as taking input from the
  * request, and adapting the response, including last modified checks.
  *
  * @author Henrik Bjerne
@@ -101,134 +86,93 @@ public class GalleryController {
     private String mediaResourcesCacheHeader;
 
     /**
-     * Retrieves the listing for a given path (which can be empty). The response can
-     * contain media in the shape of {@link GalleryFileHolder} instances as well as
-     * subdirectories.
+     * Retrieves the listing for a given path (which can be empty). The response can contain media in the shape of {@link GalleryFileHolder}
+     * instances as well as subdirectories.
      *
      * @param servletRequest Servlet request
      * @return A {@link ListingContext} instance.
-     * @throws IOException Sub-types of this exception are thrown for different
-     *                     scenarios, and the {@link IOException} itself for generic
+     * @throws IOException Subtypes of this exception are thrown for different scenarios, and the {@link IOException} itself for generic
      *                     errors.
      */
-    @RequestMapping(value = SERVICE_PATH + "**", method = RequestMethod.GET)
-    public @ResponseBody ListingContext query(HttpServletRequest servletRequest, @RequestParam(required = false, value = "searchTerm") String searchTerm) throws Exception {
-//		((GallerySearchServiceImpl) gallerySearchService).createOrUpdateOneDirectory(new File("/home/henrik/dev/gallery-test-data/Bilder"),
-//				List.of(new File("/home/henrik/dev/gallery-test-data/Bilder")));
-//		((GallerySearchServiceImpl) gallerySearchService).createOrUpdateAllDirectories();
-        //((GallerySearchServiceImpl) gallerySearchService).search("henrik", "pxl");
+    //@RequestMapping(value = SERVICE_PATH + "**", method = RequestMethod.GET)
+    @GetMapping("/service/{*filePath}")
+    public @ResponseBody ListingContext query(HttpServletRequest servletRequest, @PathVariable String filePath,
+                                              @RequestParam(required = false, value = "searchTerm") String searchTerm) throws Exception {
         long startTime = System.currentTimeMillis();
-        String path = extractPathFromPattern(servletRequest);
-        LOG.debug("Entering getListing(path={})", path);
+        // Extracted public path starts with '/', public path does not
+        String publicPath = filePath.substring(1);
         String contextPath = servletRequest.getContextPath();
-        try {
-            ListingContext listingContext = new ListingContext();
-            listingContext.setAllowCustomImageSizes(allowCustomImageSizes);
-            listingContext.setImageFormats(imageFormats);
-            listingContext.setVideoFormats(galleryService.getAvailableVideoModes());
-            SearchResult searchResult = gallerySearchService.search(path, searchTerm);
-            listingContext.setMedia(convertToGalleryFileHolders(contextPath, searchResult.files()));
-            listingContext.setDirectories(convertToGalleryDirectoryHolders(contextPath, searchResult.directories()));
-            LOG.debug("{} media files, {} directories found in {} milliseconds", searchResult.files(), searchResult.directories().size(), System.currentTimeMillis() - startTime);
-            return listingContext;
-        } catch (NotAllowedException noe) {
-            LOG.warn("Not allowing resource {}", path);
-            throw new ResourceNotFoundException();
-        } catch (FileNotFoundException fnfe) {
-            LOG.warn("Could not find resource {}", path);
-            throw new ResourceNotFoundException();
-        } catch (IOException ioe) {
-            LOG.error("Error when calling getImage", ioe);
-            throw ioe;
-        } catch (Exception e) {
-            LOG.error("Error when calling getListing", e);
-            throw e;
-        }
+        LOG.debug("Entering getListing(path={})", publicPath);
+        ListingContext listingContext = new ListingContext();
+        listingContext.setAllowCustomImageSizes(allowCustomImageSizes);
+        listingContext.setImageFormats(imageFormats);
+        listingContext.setVideoFormats(galleryService.getAvailableVideoModes());
+        SearchResult searchResult = gallerySearchService.search(publicPath, searchTerm);
+        listingContext.setMedia(convertToGalleryFileHolders(contextPath, searchResult.files()));
+        listingContext.setDirectories(convertToGalleryDirectoryHolders(contextPath, searchResult.directories()));
+        LOG.debug("Found {} media files, {} directories in {} milliseconds", searchResult.files(), searchResult.directories().size(),
+                System.currentTimeMillis() - startTime);
+        return listingContext;
     }
 
     /**
      * Requests an image with the given {@link ImageFormat}.
      *
      * @param request         Spring request
-     * @param servletRequest  Servlet request
      * @param imageFormatCode Image format.
-     * @return The image as a stream with the appropriate response headers set or a
-     * not-modified response, (see
+     * @return The image as a stream with the appropriate response headers set or a not-modified response, (see
      * {@link #returnResource(WebRequest, GalleryFile)}).
-     * @throws IOException Sub-types of this exception are thrown for different
-     *                     scenarios, and the {@link IOException} itself for generic
+     * @throws IOException Sub-types of this exception are thrown for different scenarios, and the {@link IOException} itself for generic
      *                     errors.
      */
-    @RequestMapping(value = "/image/{imageFormat}/**", method = RequestMethod.GET)
-    public ResponseEntity<InputStreamResource> getImage(WebRequest request, HttpServletRequest servletRequest,
-                                                        @PathVariable(value = "imageFormat") String imageFormatCode) throws IOException {
-        String path = extractPathFromPattern(servletRequest);
+    @RequestMapping(value = "/image/{imageFormat}/{*filePath}", method = RequestMethod.GET)
+    public ResponseEntity<InputStreamResource> getImage(WebRequest request, @PathVariable(value = "imageFormat") String imageFormatCode,
+                                                        @PathVariable String filePath) throws IOException, NotAllowedException {
+        String path = filePath.substring(1);
         LOG.debug("getImage(imageFormatCode={}, path={})", imageFormatCode, path);
-        try {
-            ImageFormat imageFormat = getImageFormatForCode(imageFormatCode);
-            if (imageFormat == null) {
-                throw new ResourceNotFoundException();
-            }
-            GalleryFile galleryFile = galleryService.getImage(path, imageFormat.getWidth(), imageFormat.getHeight());
-            return returnResource(request, galleryFile);
-        } catch (FileNotFoundException fnfe) {
-            LOG.warn("Could not find resource {}", path);
+        ImageFormat imageFormat = getImageFormatForCode(imageFormatCode);
+        if (imageFormat == null) {
             throw new ResourceNotFoundException();
-        } catch (NotAllowedException nae) {
-            LOG.warn("User was not allowed to access resource {}", path);
-            throw new ResourceNotFoundException();
-        } catch (IOException ioe) {
-            LOG.error("Error when calling getImage", ioe);
-            throw ioe;
         }
+        GalleryFile galleryFile = galleryService.getImage(path, imageFormat.getWidth(), imageFormat.getHeight());
+        return returnResource(request, galleryFile);
     }
 
     /**
-     * Requests an image of a custom size. This method will return the image only if
-     * {@link #allowCustomImageSizes} is set to true.
+     * Requests an image of a custom size. This method will return the image only if {@link #allowCustomImageSizes} is set to true.
      *
-     * @param request        Spring request
-     * @param servletRequest Servlet request
-     * @param width          Width in pixels
-     * @param height         Height in pixels
-     * @return The image as a stream with the appropriate response headers set or a
-     * not-modified response, (see
+     * @param request Spring request
+     * @param width   Width in pixels
+     * @param height  Height in pixels
+     * @return The image as a stream with the appropriate response headers set or a not-modified response, (see
      * {@link #returnResource(WebRequest, GalleryFile)}).
-     * @throws IOException Sub-types of this exception are thrown for different
-     *                     scenarios, and the {@link IOException} itself for generic
+     * @throws IOException Sub-types of this exception are thrown for different scenarios, and the {@link IOException} itself for generic
      *                     errors.
      */
-    @RequestMapping(value = "/customImage/{width}/{height}/**", method = RequestMethod.GET)
-    public ResponseEntity<InputStreamResource> getCustomImage(WebRequest request, HttpServletRequest servletRequest,
-                                                              @PathVariable(value = "width") String width, @PathVariable(value = "height") String height)
-            throws IOException {
+    @RequestMapping(value = "/customImage/{width}/{height}/{*filePath}", method = RequestMethod.GET)
+    public ResponseEntity<InputStreamResource> getCustomImage(WebRequest request, @PathVariable(value = "width") String width,
+                                                              @PathVariable(value = "height") String height, @PathVariable String filePath)
+            throws IOException, NotAllowedException {
         if (!allowCustomImageSizes) {
             LOG.debug("Request for custom image was made despite allowCustomImageSizes being false.");
             throw new ResourceNotFoundException();
         }
-        String path = extractPathFromPattern(servletRequest);
+        String path = filePath.substring(1);
         LOG.debug("getCustomImage(width={}, height={}, path={})", width, height, path);
         try {
             int widthInt = Integer.parseInt(width);
             int heightInt = Integer.parseInt(height);
             if (widthInt <= 0 || heightInt <= 0) {
-                LOG.debug("Won't try to scale an image to negative dimensions for {}", path);
-                throw new ResourceNotFoundException();
+                String errorMessage = "Can't scale an image to negative dimensions for %s".formatted(path);
+                LOG.debug(errorMessage);
+                throw new IllegalArgumentException(errorMessage);
             }
             GalleryFile galleryFile = galleryService.getImage(path, widthInt, heightInt);
             return returnResource(request, galleryFile);
-        } catch (FileNotFoundException fnfe) {
-            LOG.warn("Could not find resource {}", path);
-            throw new ResourceNotFoundException();
-        } catch (NotAllowedException nae) {
-            LOG.warn("User was not allowed to access resource {}", path);
-            throw new ResourceNotFoundException();
         } catch (NumberFormatException nfe) {
-            LOG.warn("Could not parse image dimensions {}", path);
-            throw new ResourceNotFoundException();
-        } catch (IOException ioe) {
-            LOG.error("Error when calling getImage", ioe);
-            throw ioe;
+            String errorMessage = "Could not parse image dimensions %s".formatted(path);
+            LOG.warn(errorMessage);
+            throw new IllegalArgumentException(errorMessage);
         }
     }
 
@@ -236,59 +180,41 @@ public class GalleryController {
      * Requests a video of a certain format.
      *
      * @param request          Spring request
-     * @param servletRequest   Servlet request
      * @param conversionFormat Video format
-     * @return The image as a stream with the appropriate response headers set or a
-     * not-modified response, (see
+     * @return The image as a stream with the appropriate response headers set or a not-modified response, (see
      * {@link #returnResource(WebRequest, GalleryFile)}).
-     * @throws IOException Sub-types of this exception are thrown for different
-     *                     scenarios, and the {@link IOException} itself for generic
+     * @throws IOException Sub-types of this exception are thrown for different scenarios, and the {@link IOException} itself for generic
      *                     errors.
      */
-    @RequestMapping(value = "/video/{conversionFormat}/**", method = RequestMethod.GET)
-    public ResponseEntity<InputStreamResource> getVideo(WebRequest request, HttpServletRequest servletRequest,
-                                                        @PathVariable(value = "conversionFormat") String conversionFormat) throws IOException {
-        String path = extractPathFromPattern(servletRequest);
+    @RequestMapping(value = "/video/{conversionFormat}/{*filePath}", method = RequestMethod.GET)
+    public ResponseEntity<InputStreamResource> getVideo(WebRequest request,
+                                                        @PathVariable(value = "conversionFormat") String conversionFormat,
+                                                        @PathVariable String filePath) throws IOException, NotAllowedException {
+        String path = filePath.substring(1);
         LOG.debug("getVideo(path={}, conversionFormat={})", path, conversionFormat);
-        try {
-            // GalleryFile galleryFile = galleryService.getGalleryFile(path);
-            GalleryFile galleryFile = galleryService.getVideo(path, conversionFormat);
-            if (!GalleryFileType.VIDEO.equals(galleryFile.getType())) {
-                LOG.warn("File {} was not a video but {}. Throwing ResourceNotFoundException.", path,
-                        galleryFile.getType());
-                throw new ResourceNotFoundException();
-            }
-            return returnResource(request, galleryFile);
-        } catch (FileNotFoundException fnfe) {
-            LOG.warn("Could not find resource {}", path);
+
+        GalleryFile galleryFile = galleryService.getVideo(path, conversionFormat);
+        if (!GalleryFileType.VIDEO.equals(galleryFile.getType())) {
+            LOG.warn("File {} was not a video but {}. Throwing ResourceNotFoundException.", path, galleryFile.getType());
             throw new ResourceNotFoundException();
-        } catch (NotAllowedException nae) {
-            LOG.warn("User was not allowed to access resource {}", path);
-            throw new ResourceNotFoundException();
-        } catch (IOException ioe) {
-            LOG.error("Error when calling getVideo", ioe);
-            throw ioe;
         }
+        return returnResource(request, galleryFile);
     }
 
     /**
-     * Method used to return the binary of a gallery file (
-     * {@link GalleryFile#getActualFile()} ). This method handles 304 redirects (if
-     * file has not changed) and range headers if requested by browser. The range
-     * parts is particularly important for videos. The correct response status is
-     * set depending on the circumstances.
+     * Method used to return the binary of a gallery file ( {@link GalleryFile#getActualFile()} ). This method handles 304 redirects (if
+     * file has not changed) and range headers if requested by browser. The range parts is particularly important for videos. The correct
+     * response status is set depending on the circumstances.
      * <p>
-     * NOTE: the range logic should NOT be considered a complete implementation -
-     * it's a bare minimum for making requests for byte ranges work.
+     * NOTE: the range logic should NOT be considered a complete implementation - it's a bare minimum for making requests for byte ranges
+     * work.
      *
      * @param request     Request
      * @param galleryFile Gallery file
-     * @return The binary of the gallery file, or a 304 redirect, or a part of the
-     * file.
+     * @return The binary of the gallery file, or a 304 redirect, or a part of the file.
      * @throws IOException If there is an issue accessing the binary file.
      */
-    private ResponseEntity<InputStreamResource> returnResource(WebRequest request, GalleryFile galleryFile)
-            throws IOException {
+    private ResponseEntity<InputStreamResource> returnResource(WebRequest request, GalleryFile galleryFile) throws IOException {
         LOG.debug("Entering returnResource()");
         if (request.checkNotModified(galleryFile.getActualFile().lastModified())) {
             return null;
@@ -317,11 +243,10 @@ public class GalleryController {
             is.skip(startPosition);
             String contentRangeResponseHeader = "bytes " + startPosition + "-" + endPosition + "/" + fileTotalSize;
             responseHeaders.add(HttpHeaders.CONTENT_RANGE, contentRangeResponseHeader);
-            LOG.debug("{} was not null but {}. Adding header {} to response: {}", HttpHeaders.RANGE, rangeHeader,
-                    HttpHeaders.CONTENT_RANGE, contentRangeResponseHeader);
+            LOG.debug("{} was not null but {}. Adding header {} to response: {}", HttpHeaders.RANGE, rangeHeader, HttpHeaders.CONTENT_RANGE,
+                    contentRangeResponseHeader);
         }
-        HttpStatus status = (startPosition == 0 && contentLength == fileTotalSize) ? HttpStatus.OK
-                : HttpStatus.PARTIAL_CONTENT;
+        HttpStatus status = (startPosition == 0 && contentLength == fileTotalSize) ? HttpStatus.OK : HttpStatus.PARTIAL_CONTENT;
         LOG.debug("Returning {}. Status: {}, content-type: {}, {}: {}, contentLength: {}", file, status, contentType,
                 HttpHeaders.CONTENT_RANGE, responseHeaders.get(HttpHeaders.CONTENT_RANGE), contentLength);
         return new ResponseEntity<>(inputStreamResource, responseHeaders, status);
@@ -331,16 +256,14 @@ public class GalleryController {
      * Extracts the request range header if present.
      *
      * @param rangeHeader Range header.
-     * @return a long[] which will always be the size 2. The first element is the
-     * start index, and the second the end index. If the end index is not
-     * set (which means till the end of the resource), 0 is returned in that
-     * field.
+     * @return a long[] which will always be the size 2. The first element is the start index, and the second the end index. If the end
+     * index is not set (which means till the end of the resource), 0 is returned in that field.
      */
     private long[] getRangesFromHeader(String rangeHeader) {
         LOG.debug("Range header: {}", rangeHeader);
         long[] result = new long[2];
         final String headerPrefix = "bytes=";
-        if (StringUtils.startsWith(rangeHeader, headerPrefix)) {
+        if (Strings.CS.startsWith(rangeHeader, headerPrefix)) {
             String[] splitRange = rangeHeader.substring(headerPrefix.length()).split("-");
             try {
                 result[0] = Long.parseLong(splitRange[0]);
@@ -358,8 +281,7 @@ public class GalleryController {
     }
 
     /**
-     * Converts a list of service layer {@link GalleryFile} objects to web model
-     * {@link GalleryFileHolder} objects.
+     * Converts a list of service layer {@link GalleryFile} objects to web model {@link GalleryFileHolder} objects.
      *
      * @param contextPath  Webapp context path.
      * @param galleryFiles List of gallery files.
@@ -372,12 +294,9 @@ public class GalleryController {
     }
 
     /**
-     * Converts the provided service layer {@link GalleryFile} object to a web model
-     * {@link GalleryFileHolder} object. The public paths are appended to the
-     * appropriate services in question; a video for example is retrieved via a
-     * different URL than an image, and images are retrieved from different URLs
-     * depending on whether they are free size URLs or requested with a specific
-     * format.
+     * Converts the provided service layer {@link GalleryFile} object to a web model {@link GalleryFileHolder} object. The public paths are
+     * appended to the appropriate services in question; a video for example is retrieved via a different URL than an image, and images are
+     * retrieved from different URLs depending on whether they are free size URLs or requested with a specific format.
      *
      * @param contextPath Webapp context path.
      * @param galleryFile Gallery file.
@@ -397,15 +316,13 @@ public class GalleryController {
     }
 
     /**
-     * Converts a list of the provided service layer {@link GalleryDirectory} files
-     * for web models {@link GalleryDirectoryHolder} objects.
+     * Converts a list of the provided service layer {@link GalleryDirectory} files for web models {@link GalleryDirectoryHolder} objects.
      *
      * @param contextPath        Webapp context path.
      * @param galleryDirectories List of service layer directories.
      * @return A list of gallery directory holders
      */
-    private List<GalleryDirectoryHolder> convertToGalleryDirectoryHolders(String contextPath,
-                                                                          List<GalleryDirectory> galleryDirectories) {
+    private List<GalleryDirectoryHolder> convertToGalleryDirectoryHolders(String contextPath, List<GalleryDirectory> galleryDirectories) {
         List<GalleryDirectoryHolder> galleryDirectoryHolders = new ArrayList<>(galleryDirectories.size());
         for (GalleryDirectory oneGalleryDirectory : galleryDirectories) {
             GalleryDirectoryHolder oneGalleryDirectoryHolder = new GalleryDirectoryHolder();
@@ -413,8 +330,7 @@ public class GalleryController {
             oneGalleryDirectoryHolder.setName(oneGalleryDirectory.getName());
             oneGalleryDirectoryHolder.setPath(contextPath + SERVICE_PATH + onePublicPath);
             if (oneGalleryDirectory.getImage() != null) {
-                oneGalleryDirectoryHolder
-                        .setImage(convertToGalleryFileHolder(contextPath, oneGalleryDirectory.getImage()));
+                oneGalleryDirectoryHolder.setImage(convertToGalleryFileHolder(contextPath, oneGalleryDirectory.getImage()));
             }
             galleryDirectoryHolders.add(oneGalleryDirectoryHolder);
         }
@@ -437,31 +353,11 @@ public class GalleryController {
      *
      * @param contextPath Webapp context path.
      * @param file        Image.
-     * @return The URL template for the image at the given image format code. The
-     * URL will contain the placeholders {width} and {height}. The idea with
-     * these is that a calling entitiy should swap those values for the
-     * actual width/height.
+     * @return The URL template for the image at the given image format code. The URL will contain the placeholders {width} and {height}.
+     * The idea with these is that a calling entitiy should swap those values for the actual width/height.
      */
     private String generateCustomImageUrlTemplate(String contextPath, GalleryFile file) {
         return contextPath + "/customImage/{width}/{height}/" + file.getPublicPath();
-
-    }
-
-    /**
-     * Due to some Spring MVC oddities with pattern matching, the following method
-     * was put in place to correctly extract the path from the URL path (remember,
-     * the URL path contains more information than just the image path).
-     *
-     * @param request Request
-     * @return The public image path.
-     */
-    private String extractPathFromPattern(final HttpServletRequest request) {
-        String path = (String) request.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
-        String bestMatchPattern = (String) request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
-        AntPathMatcher apm = new AntPathMatcher();
-        String finalPath = apm.extractPathWithinPattern(bestMatchPattern, path);
-        // A recent Spring update seems to have changed the behaviour. We now need to URL-decode the request path
-        return URLDecoder.decode(finalPath, StandardCharsets.UTF_8);
     }
 
     /**
