@@ -5,6 +5,8 @@ import com.github.henkexbg.gallery.job.GalleryRootDirChangeListener;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 import com.github.henkexbg.gallery.strategy.FilenameToSearchTermsStrategy;
 import io.methvin.watcher.DirectoryWatcher;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import jakarta.annotation.Resource;
 import org.apache.commons.io.filefilter.FileFilterUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -22,29 +24,57 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.*;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static org.apache.commons.io.FileUtils.listFilesAndDirs;
 
 @Service
 public class GallerySearchService implements GalleryRootDirChangeListener {
 
-    private final Logger LOG = LoggerFactory.getLogger(getClass());
+    final Logger LOG = LoggerFactory.getLogger(getClass());
 
     @Resource
-    private GalleryAuthorizationService galleryAuthorizationService;
+    GalleryAuthorizationService galleryAuthorizationService;
 
     @Resource
-    private GalleryService galleryService;
+    GalleryService galleryService;
 
     @Resource
-    private FilenameToSearchTermsStrategy filenameToSearchTermsStrategy;
+    FilenameToSearchTermsStrategy filenameToSearchTermsStrategy;
 
     @Resource
-    private MetadataExtractionService metadataExtractionService;
+    MetadataExtractionService metadataExtractionService;
 
     @Resource
-    private Jdbi jdbi;
+    Jdbi jdbi;
+
+    @Resource(name = "virtualThreadExecutorService")
+    ExecutorService executorService;
+
+    DirectoryWatcher directoryWatcher = null;
+
+    Deduplicator deduplicator;
+
+    @PostConstruct
+    public void init() {
+        LOG.info("Creating Deduplicator");
+        deduplicator = new Deduplicator();
+        deduplicator.addListener((paths) -> {
+            Set<File> files = paths.stream().map(Path::toFile).collect(Collectors.toCollection(HashSet::new));
+            onFilesUpdated(files, Set.of());
+        });
+    }
+
+    @PreDestroy
+    public void destroy() {
+        LOG.info("Shutting down GallerySearchService");
+        if (deduplicator != null) {
+            deduplicator.stop();
+        }
+    }
 
     public SearchResult search(String publicPath, String searchTerm) throws IOException, NotAllowedException {
         List<String> publicPaths = new ArrayList<>();
@@ -112,25 +142,27 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
     }
 
     @Override
-    public void onGalleryRootDirsUpdated(Collection<GalleryRootDir> galleryRootDirs) {
+    public synchronized void onGalleryRootDirsUpdated(Collection<GalleryRootDir> galleryRootDirs) {
         LOG.debug("onGalleryRootDirsUpdated(galleryRootDirs: {}", galleryRootDirs);
         List<Path> rootDirs = galleryRootDirs.stream().map(grd -> grd.getDir().toPath()).toList();
         LOG.debug("Found {} directories to watch for search service", rootDirs.size());
-        DirectoryWatcher directoryWatcher;
+
         try {
+            if (directoryWatcher != null) {
+                directoryWatcher.close();
+            }
             directoryWatcher = DirectoryWatcher.builder().paths(rootDirs) // or use paths(directoriesToWatch)
                     .listener(event -> {
                         switch (event.eventType()) {
-                            case CREATE, MODIFY: /* file created */
-                                onFilesUpdated(Set.of(event.path().toFile()), Collections.emptySet());
+                            case CREATE, MODIFY:
+                                // Run via deduplicator to remove duplicates. Not required for DELETE
+                                deduplicator.add(event.path());
                                 break;
-                            case DELETE: /* file deleted */
+                            case DELETE:
                                 onFilesUpdated(Collections.emptySet(), Set.of(event.path().toFile()));
                                 break;
                         }
-                    }).fileHashing(false) // defaults to true
-                    // .logger(logger) // defaults to LoggerFactory.getLogger(DirectoryWatcher.class)
-                    // .watchService(watchService) // defaults based on OS to either JVM WatchService or the JNA macOS WatchService
+                    }).fileHashing(false)
                     .build();
             LOG.debug("Built directory watcher for search service. About to start watching");
             directoryWatcher.watchAsync();
@@ -142,13 +174,45 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
     }
 
     /**
+     * Goes through all directories and files under all root paths configured, and triggers a DB update for each. The DB will not update
+     * records that haven't changed according to modification time.
+     */
+    public void createOrUpdateAllDirectories() {
+        try {
+            Collection<File> rootDirectories = getRootDirectoriesForCurrentUser();
+            Collection<File> allDirectoriesCol = getAllDirectories(rootDirectories);
+            List<File> allDirectoriesSorted =
+                    allDirectoriesCol.stream().sorted((a, b) -> getPathNameNoException(a).length() - getPathNameNoException(b).length())
+                            .toList();
+            for (File oneDirectory : allDirectoriesSorted) {
+                try {
+                    createOrUpdateOneDirectory(oneDirectory, rootDirectories);
+                } catch (IOException e) {
+                    LOG.error("Error while creating or updating directory {} in database", oneDirectory, e);
+                }
+                List<File> filesInDir = Arrays.stream(Objects.requireNonNull(oneDirectory.listFiles())).filter(File::isFile).toList();
+                List<CompletableFuture<Void>> updatedFileFutures = filesInDir.stream().map(f -> CompletableFuture.runAsync(() -> {
+                    try {
+                        createOrUpdateOneFile(f);
+                    } catch (Exception e) {
+                        LOG.error("Failed in updating {}. Ignoring", f, e);
+                    }
+                }, executorService)).toList();
+                CompletableFuture.allOf(updatedFileFutures.toArray(new CompletableFuture[0])).join();
+            }
+        } catch (IOException | NotAllowedException e) {
+            LOG.error("Error while creating or updating directories and files in database", e);
+        }
+    }
+
+    /**
      * This is called when any files and directories are modified or deleted within the root directories. The job here is to update the
      * database appropriately
      *
      * @param upsertedFiles Created or updated filed
      * @param deletedFiles  Deleted files
      */
-    private void onFilesUpdated(Set<File> upsertedFiles, Set<File> deletedFiles) {
+    void onFilesUpdated(Set<File> upsertedFiles, Set<File> deletedFiles) {
         LOG.debug("onFilesUpdated(createdFiles: {}, deletedFiles: {}", upsertedFiles, deletedFiles);
         try {
             galleryAuthorizationService.loginAdminUser();
@@ -184,7 +248,7 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         }
     }
 
-    private GalleryFile createGalleryFileFromDbFile(DbFile dbFile) {
+    GalleryFile createGalleryFileFromDbFile(DbFile dbFile) {
         try {
             String path = dbFile.getPathOnDisk();
             File realFile = new File(path);
@@ -203,7 +267,7 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         }
     }
 
-    private GalleryDirectory createGalleryDirectoryFromDbFile(DbFile dbFile) {
+    GalleryDirectory createGalleryDirectoryFromDbFile(DbFile dbFile) {
         try {
             String path = dbFile.getPathOnDisk();
             File realFile = new File(path);
@@ -218,37 +282,7 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         }
     }
 
-    public void createOrUpdateAllDirectories() {
-        try {
-            galleryAuthorizationService.loginAdminUser();
-            Collection<File> rootDirectories = getRootDirectoriesForCurrentUser();
-            Collection<File> allDirectoriesCol = getAllDirectories(rootDirectories);
-            List<File> allDirectoriesSorted =
-                    allDirectoriesCol.stream().sorted((a, b) -> getPathNameNoException(a).length() - getPathNameNoException(b).length())
-                            .toList();
-            for (File oneDirectory : allDirectoriesSorted) {
-                try {
-                    createOrUpdateOneDirectory(oneDirectory, rootDirectories);
-                } catch (IOException e) {
-                    LOG.error("Error while creating or updating directory {} in database", oneDirectory, e);
-                }
-                List<File> filesInDir = Arrays.stream(Objects.requireNonNull(oneDirectory.listFiles())).filter(File::isFile).toList();
-                for (File oneFile : filesInDir) {
-                    try {
-                        createOrUpdateOneFile(oneFile);
-                    } catch (IOException e) {
-                        LOG.error("Failed in updating {}. Ignoring", oneFile, e);
-                    }
-                }
-            }
-        } catch (IOException | NotAllowedException e) {
-            LOG.error("Error while creating or updating directories and files in database", e);
-        } finally {
-            galleryAuthorizationService.logoutAdminUser();
-        }
-    }
-
-    public void createOrUpdateOneDirectory(File directory, Collection<File> rootDirectories) throws IOException {
+    void createOrUpdateOneDirectory(File directory, Collection<File> rootDirectories) throws IOException {
         final String findParentQuery = """
                 SELECT id FROM gallery_file
                 WHERE path_on_disk = :path_on_disk
@@ -269,8 +303,11 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         final String updateFilenamePartsQuery = """
                 INSERT INTO filename_part (file_id, part_index, part) VALUES (:file_id, :part_index, :part)
                 """;
-
         try {
+            if (isDbUpToDate(directory)) {
+                LOG.debug("Skipping update of {} as it doesn't need to be updated", directory);
+                return;
+            }
             List<String> filenameParts = filenameToSearchTermsStrategy.generateSearchTermsFromFilename(directory);
             String directoryPath = directory.getCanonicalPath();
             String parentPath = rootDirectories.contains(directory) ? null : directory.getParentFile().getCanonicalPath();
@@ -302,7 +339,19 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         }
     }
 
-    private void deleteOneFile(File file) throws IOException {
+    boolean isDbUpToDate(File file) throws IOException {
+        final String findOneQuery = """
+                SELECT * FROM PUBLIC.gallery_file WHERE path_on_disk = :path_on_disk
+                """;
+        return jdbi.withHandle(handle -> {
+            Optional<DbFile> dbFile =
+                    handle.createQuery(findOneQuery).bind("path_on_disk", file.getCanonicalPath()).mapTo(DbFile.class).stream().findAny();
+            return dbFile.isPresent() && dbFile.get().getLastModified() != null &&
+                    dbFile.get().getLastModified().toEpochMilli() >= file.lastModified();
+        });
+    }
+
+    void deleteOneFile(File file) throws IOException {
         final String deleteGalleryFileQuery = """
                 DELETE FROM PUBLIC.gallery_file WHERE path_on_disk = :path_on_disk
                 """;
@@ -313,9 +362,13 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         });
     }
 
-    private void createOrUpdateOneFile(File file) throws IOException {
+    void createOrUpdateOneFile(File file) throws IOException {
         try {
             if (!galleryService.isAllowedExtension(file)) {
+                return;
+            }
+            if (isDbUpToDate(file)) {
+                LOG.debug("Skipping update of {} as it doesn't need to be updated", file);
                 return;
             }
             final String findParentQuery = """
@@ -361,12 +414,12 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         }
     }
 
-    private void updateFilenameTags(File fileOrDir, long fileId) throws IOException {
+    void updateFilenameTags(File fileOrDir, long fileId) throws IOException {
         List<String> filenameParts = filenameToSearchTermsStrategy.generateSearchTermsFromFilename(fileOrDir);
         updateTagsForSource(fileOrDir, fileId, "FILENAME", filenameParts);
     }
 
-    private void updateLocationTags(File fileOrDir, long fileId, Location location) throws IOException {
+    void updateLocationTags(File fileOrDir, long fileId, Location location) throws IOException {
         if (location == null) {
             return;
         }
@@ -375,7 +428,7 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         updateTagsForSource(fileOrDir, fileId, "LOCATION", locationParts);
     }
 
-    private void updateTagsForSource(File fileOrDir, long fileId, String source, List<String> newTags) throws IOException {
+    void updateTagsForSource(File fileOrDir, long fileId, String source, List<String> newTags) throws IOException {
         final String deleteTagsQuery = """
                 DELETE FROM tag WHERE source = :source AND file_id = :file_id
                 """;
@@ -404,15 +457,15 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
      * @return Content type for given file.
      * @throws IOException If there's an error finding the content type
      */
-    private String getContentType(File file) throws IOException {
+    String getContentType(File file) throws IOException {
         return Files.probeContentType(file.toPath());
     }
 
-    private boolean isVideo(String contentType) {
+    boolean isVideo(String contentType) {
         return Strings.CS.startsWith(contentType, "video");
     }
 
-    private String getPathNameNoException(File f) {
+    String getPathNameNoException(File f) {
         try {
             return f.getCanonicalPath();
         } catch (IOException ioe) {
@@ -420,12 +473,12 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         }
     }
 
-    private Collection<File> getRootDirectoriesForCurrentUser() throws IOException {
+    Collection<File> getRootDirectoriesForCurrentUser() throws IOException {
         Map<String, File> rootPathsForCurrentUser = galleryAuthorizationService.getRootPathsForCurrentUser();
         return rootPathsForCurrentUser.values();
     }
 
-    private Collection<File> getAllDirectories(Collection<File> dirs) throws IOException, NotAllowedException {
+    Collection<File> getAllDirectories(Collection<File> dirs) throws IOException, NotAllowedException {
         Collection<File> allDirectories = new HashSet<>();
         dirs.forEach(dir -> allDirectories.addAll(
                 listFilesAndDirs(dir, FileFilterUtils.falseFileFilter(), FileFilterUtils.directoryFileFilter())));

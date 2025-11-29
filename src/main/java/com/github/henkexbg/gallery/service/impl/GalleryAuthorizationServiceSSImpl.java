@@ -139,6 +139,11 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
 		return rootPathsForCurrentUser;
 	}
 
+    @Override
+    public boolean isAdmin() {
+        return getCurrentUserRoles().contains("ROLE_ADMIN");
+    }
+
 	/**
 	 * Simpler helper to validate that the child is indeed a canonical child of the
 	 * parent file.

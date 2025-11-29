@@ -25,6 +25,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -128,6 +130,10 @@ public class Application implements WebMvcConfigurer {
         return jdbi;
     }
 
+    @Bean(name = "virtualThreadExecutorService", destroyMethod = "shutdown")
+    public ExecutorService  virtualThreadExecutorService() {
+        return Executors.newVirtualThreadPerTaskExecutor();
+    }
 //    @Bean
 //    public DataSource dataSource() {
 //        return new EmbeddedDatabaseBuilder().

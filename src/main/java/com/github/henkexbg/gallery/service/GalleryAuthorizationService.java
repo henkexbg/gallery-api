@@ -22,7 +22,6 @@
 package com.github.henkexbg.gallery.service;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Map;
 
@@ -56,16 +55,23 @@ public interface GalleryAuthorizationService {
 	 * allowed according to the configuration, this method will return the
 	 * corresponding file.
 	 * 
-	 * @param publicPath
+	 * @param publicPath Public path
 	 * @return The file or directory as pointed to by the public path for the
 	 *         current user
 	 * @throws NotAllowedException If the provided public path does not resolve to a
 	 *                             real file that the current user has access to
 	 * @throws IOException         If any more general errors occurs
 	 */
-	File getRealFileOrDir(String publicPath) throws IOException, FileNotFoundException, NotAllowedException;
+	File getRealFileOrDir(String publicPath) throws IOException, NotAllowedException;
 
-	/**
+    /**
+     * Checks if current user is an admin user
+     *
+     * @return True if current user is admin user
+     */
+    boolean isAdmin();
+
+    /**
 	 * The admin user is required for certain management tasks (for instance
 	 * cronjobs). This user should have all the rights of all the users. This
 	 * methods logs that user in. <br>

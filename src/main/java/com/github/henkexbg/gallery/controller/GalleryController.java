@@ -37,7 +37,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.WebRequest;
 
@@ -63,7 +62,7 @@ import com.github.henkexbg.gallery.service.exception.NotAllowedException;
  * @author Henrik Bjerne
  *
  */
-@Controller
+@RestController
 public class GalleryController {
 
     private final Logger LOG = LoggerFactory.getLogger(getClass());
@@ -94,9 +93,8 @@ public class GalleryController {
      * @throws IOException Subtypes of this exception are thrown for different scenarios, and the {@link IOException} itself for generic
      *                     errors.
      */
-    //@RequestMapping(value = SERVICE_PATH + "**", method = RequestMethod.GET)
     @GetMapping("/service/{*filePath}")
-    public @ResponseBody ListingContext query(HttpServletRequest servletRequest, @PathVariable String filePath,
+    public ListingContext query(HttpServletRequest servletRequest, @PathVariable String filePath,
                                               @RequestParam(required = false, value = "searchTerm") String searchTerm) throws Exception {
         long startTime = System.currentTimeMillis();
         // Extracted public path starts with '/', public path does not
@@ -305,7 +303,9 @@ public class GalleryController {
     private GalleryFileHolder convertToGalleryFileHolder(String contextPath, GalleryFile galleryFile) {
         GalleryFileHolder galleryFileHolder = new GalleryFileHolder();
         galleryFileHolder.setFilename(galleryFile.getActualFile().getName());
-        galleryFileHolder.setFreeSizePath(generateCustomImageUrlTemplate(contextPath, galleryFile));
+        if (allowCustomImageSizes) {
+            galleryFileHolder.setFreeSizePath(generateCustomImageUrlTemplate(contextPath, galleryFile));
+        }
         galleryFileHolder.setFormatPath(generateDynamicImageUrl(contextPath, galleryFile));
         if (GalleryFileType.VIDEO.equals(galleryFile.getType())) {
             galleryFileHolder.setVideoPath(contextPath + "/video/{conversionFormat}/" + galleryFile.getPublicPath());
