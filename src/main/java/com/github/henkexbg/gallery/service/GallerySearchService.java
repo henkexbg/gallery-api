@@ -4,6 +4,7 @@ import com.github.henkexbg.gallery.bean.*;
 import com.github.henkexbg.gallery.job.GalleryRootDirChangeListener;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 import com.github.henkexbg.gallery.strategy.FilenameToSearchTermsStrategy;
+import com.github.henkexbg.gallery.util.GalleryFileUtils;
 import io.methvin.watcher.DirectoryWatcher;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -29,6 +30,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import static com.github.henkexbg.gallery.util.GalleryFileUtils.getPathName;
 import static org.apache.commons.io.FileUtils.listFilesAndDirs;
 
 @Service
@@ -113,6 +115,7 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
             }
             sb.append(")");
         }
+        sb.append(" ORDER BY f.date_taken DESC");
 
         String fullQuery = sb.toString();
         List<DbFile> list = new ArrayList<>();
@@ -182,8 +185,7 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
             Collection<File> rootDirectories = getRootDirectoriesForCurrentUser();
             Collection<File> allDirectoriesCol = getAllDirectories(rootDirectories);
             List<File> allDirectoriesSorted =
-                    allDirectoriesCol.stream().sorted((a, b) -> getPathNameNoException(a).length() - getPathNameNoException(b).length())
-                            .toList();
+                    allDirectoriesCol.stream().sorted(Comparator.comparingInt(f -> getPathName(f).length())).toList();
             for (File oneDirectory : allDirectoriesSorted) {
                 try {
                     createOrUpdateOneDirectory(oneDirectory, rootDirectories);
@@ -206,6 +208,21 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
     }
 
     /**
+     * Finds all files in the DB of type video
+     *
+     * @return A list of files
+     */
+    public List<File> findAllVideos() {
+        final String findOneQuery = """
+                SELECT * FROM PUBLIC.gallery_file WHERE file_type = 'VIDEO'
+                """;
+        List<DbFile> videoDbFiles = jdbi.withHandle(handle ->
+                handle.createQuery(findOneQuery).mapTo(DbFile.class).stream().toList()
+        );
+        return videoDbFiles.stream().map(dbFile -> new File(dbFile.getPathOnDisk())).toList();
+    }
+
+    /**
      * This is called when any files and directories are modified or deleted within the root directories. The job here is to update the
      * database appropriately
      *
@@ -217,9 +234,7 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         try {
             galleryAuthorizationService.loginAdminUser();
             Collection<File> rootDirectories = getRootDirectoriesForCurrentUser();
-            List<File> allUpdatedFilesSorted =
-                    upsertedFiles.stream().sorted((a, b) -> getPathNameNoException(a).length() - getPathNameNoException(b).length())
-                            .toList();
+            List<File> allUpdatedFilesSorted = upsertedFiles.stream().sorted(GalleryFileUtils.shortestPathComparatorFile()).toList();
             allUpdatedFilesSorted.forEach(f -> {
                 try {
                     if (f.isDirectory()) {
@@ -231,9 +246,7 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
                     LOG.error("Error when updating {}. Ignoring", f, e);
                 }
             });
-            List<File> allDeletedFilesSorted =
-                    deletedFiles.stream().sorted((a, b) -> getPathNameNoException(b).length() - getPathNameNoException(a).length())
-                            .toList();
+            List<File> allDeletedFilesSorted = deletedFiles.stream().sorted(GalleryFileUtils.shortestPathComparatorFile()).toList();
             allDeletedFilesSorted.forEach(df -> {
                 try {
                     deleteOneFile(df);
@@ -465,13 +478,6 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         return Strings.CS.startsWith(contentType, "video");
     }
 
-    String getPathNameNoException(File f) {
-        try {
-            return f.getCanonicalPath();
-        } catch (IOException ioe) {
-            throw new RuntimeException("IOException when checking file path name. This should NOT happen!", ioe);
-        }
-    }
 
     Collection<File> getRootDirectoriesForCurrentUser() throws IOException {
         Map<String, File> rootPathsForCurrentUser = galleryAuthorizationService.getRootPathsForCurrentUser();

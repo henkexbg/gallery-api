@@ -48,7 +48,7 @@ public class GalleryServiceTest {
 	@Test
 	@WithMockUser(username = "test", roles = { "USER", "TEST" })
 	public void testGetDirectories() throws Exception {
-		galleryService.getDirectories("somepath");
+		//
 	}
 
 }

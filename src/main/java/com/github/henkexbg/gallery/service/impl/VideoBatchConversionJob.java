@@ -1,22 +1,16 @@
 /**
  * Copyright (c) 2016 Henrik Bjerne
  * <p>
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:The above copyright
- * notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:The above copyright notice and this permission notice shall be included in all copies or substantial portions of
+ * the Software.
  * <p>
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
+ * ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
+ * THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 package com.github.henkexbg.gallery.service.impl;
 
@@ -30,6 +24,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 
+import com.github.henkexbg.gallery.service.GallerySearchService;
+import com.github.henkexbg.gallery.service.VideoConversionService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.annotation.Resource;
@@ -38,10 +34,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.henkexbg.gallery.bean.GalleryFile;
 import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
-import com.github.henkexbg.gallery.service.GalleryService;
-import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -62,43 +55,26 @@ public class VideoBatchConversionJob {
     private final Logger LOG = LoggerFactory.getLogger(getClass());
 
     @Resource
-    private GalleryService galleryService;
+    GallerySearchService gallerySearchService;
 
     @Resource
-    private GalleryAuthorizationService galleryAuthorizationService;
+    VideoConversionService videoConversionService;
+
+    @Resource
+    GalleryAuthorizationService galleryAuthorizationService;
 
     @Value("${gallery.videoConversion.blacklistedVideosFile}")
-    private String blacklistedVideosFilePath;
+    String blacklistedVideosFilePath;
 
-    private int initialDelaySeconds = 10;
+    int initialDelaySeconds = 10;
 
-    private int waitPeriodSeconds = 120;
+    int waitPeriodSeconds = 120;
 
-    private boolean running = false;
+    ScheduledExecutorService executor;
 
-    private boolean abort = false;
+    private volatile boolean running = false;
 
-    private ScheduledExecutorService executor;
-
-    public void setGalleryService(GalleryService galleryService) {
-        this.galleryService = galleryService;
-    }
-
-    public void setGalleryAuthorizationService(GalleryAuthorizationService galleryAuthorizationService) {
-        this.galleryAuthorizationService = galleryAuthorizationService;
-    }
-
-    public void setInitialDelaySeconds(int initialDelaySeconds) {
-        this.initialDelaySeconds = initialDelaySeconds;
-    }
-
-    public void setWaitPeriodSeconds(int waitPeriodSeconds) {
-        this.waitPeriodSeconds = waitPeriodSeconds;
-    }
-
-    public void setBlacklistedVideosFilePath(String blacklistedVideosFilePath) {
-        this.blacklistedVideosFilePath = blacklistedVideosFilePath;
-    }
+    private volatile boolean abort = false;
 
     @PostConstruct
     public void startBatchService() {
@@ -119,35 +95,26 @@ public class VideoBatchConversionJob {
         long totalStartTime = System.currentTimeMillis();
         try {
             galleryAuthorizationService.loginAdminUser();
-            List<GalleryFile> allVideos = galleryService.getAllVideos();
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("Found {} videos for conversion", allVideos.size());
-                allVideos.forEach(v -> LOG.debug("One video: {}", v.getPublicPath()));
-            }
-            Collection<String> videoConversionModes = galleryService.getAvailableVideoModes();
-            LOG.debug("Found the following video conversion modes: {}", videoConversionModes);
+            List<File> allVideos = gallerySearchService.findAllVideos();
+            LOG.debug("Found {} videos for conversion", allVideos.size());
             Collection<String> blacklistedVideoPaths = getBlacklistedVideoPaths();
-            for (GalleryFile oneGalleryFile : allVideos) {
-                String oneGalleryFileCanonicalPath = oneGalleryFile.getActualFile().getCanonicalPath();
-                if (blacklistedVideoPaths.contains(oneGalleryFileCanonicalPath)) {
-                    LOG.debug("Ignoring blacklisted video {}", oneGalleryFileCanonicalPath);
-                    continue;
+            for (File oneVideoFile : allVideos) {
+                if (abort) {
+                    LOG.warn("Abort requested. Skipping remainder of conversions.");
+                    return;
                 }
-                for (String oneConversionMode : videoConversionModes) {
-                    if (abort) {
-                        LOG.warn("Abort requested. Skipping remainder of conversions.");
-                        return;
+                String oneVideoFilePath = null;
+                try {
+                    oneVideoFilePath = oneVideoFile.getCanonicalPath();
+                    if (blacklistedVideoPaths.contains(oneVideoFilePath)) {
+                        LOG.debug("Ignoring blacklisted video {}", oneVideoFilePath);
+                        continue;
                     }
-                    try {
-                        // We just call getVideo, as we know this will trigger a
-                        // conversion if the converted file does not already
-                        // exist.
-                        galleryService.getVideo(oneGalleryFile.getPublicPath(), oneConversionMode);
-                    } catch (IOException | NotAllowedException e) {
-                        LOG.error("Error while converting {} for format {}. Continuing with next video.", oneGalleryFile.getPublicPath(),
-                                oneConversionMode);
-                        addBlacklistedVideo(oneGalleryFileCanonicalPath);
-                    }
+                    // We just call getConvertedVideo, as we know this will trigger a conversion if the file does not already exist
+                    videoConversionService.convertVideo(oneVideoFile);
+                } catch (IOException e) {
+                    LOG.error("Error while converting {}. Continuing with next video.", oneVideoFile, e);
+                    addBlacklistedVideo(oneVideoFilePath);
                 }
             }
             long totalDuration = System.currentTimeMillis() - totalStartTime;

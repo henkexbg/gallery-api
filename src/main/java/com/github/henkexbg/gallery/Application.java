@@ -64,8 +64,6 @@ import javax.sql.DataSource;
 @EnableWebSecurity
 public class Application implements WebMvcConfigurer {
 
-//    private String allowedCorsOrigins = null;
-
     @Value("${gallery.h2.connectionString}")
     private String h2ConnectionString;
 
@@ -134,12 +132,4 @@ public class Application implements WebMvcConfigurer {
     public ExecutorService  virtualThreadExecutorService() {
         return Executors.newVirtualThreadPerTaskExecutor();
     }
-//    @Bean
-//    public DataSource dataSource() {
-//        return new EmbeddedDatabaseBuilder().
-//                .setType(EmbeddedDatabaseType.H2)
-//                .addScript("classpath:jdbc/schema.sql")
-//                .addScript("classpath:jdbc/test-data.sql").build();
-//    }
-
 }

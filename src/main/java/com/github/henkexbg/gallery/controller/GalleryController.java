@@ -21,9 +21,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import com.github.henkexbg.gallery.bean.SearchResult;
 import com.github.henkexbg.gallery.service.GallerySearchService;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.io.input.BoundedInputStream;
@@ -84,6 +86,17 @@ public class GalleryController {
     @Value("${gallery.mediaResourcesCacheHeader}")
     private String mediaResourcesCacheHeader;
 
+    @Resource
+    private Map<String, String> videoConversionModes;
+
+    private List<String> videoFormats;
+
+    @PostConstruct
+    public void init() {
+        videoFormats = new ArrayList<>(videoConversionModes.keySet());
+        videoFormats.add("ORIGINAL");
+    }
+
     /**
      * Retrieves the listing for a given path (which can be empty). The response can contain media in the shape of {@link GalleryFileHolder}
      * instances as well as subdirectories.
@@ -95,7 +108,7 @@ public class GalleryController {
      */
     @GetMapping("/service/{*filePath}")
     public ListingContext query(HttpServletRequest servletRequest, @PathVariable String filePath,
-                                              @RequestParam(required = false, value = "searchTerm") String searchTerm) throws Exception {
+                                @RequestParam(required = false, value = "searchTerm") String searchTerm) throws Exception {
         long startTime = System.currentTimeMillis();
         // Extracted public path starts with '/', public path does not
         String publicPath = filePath.substring(1);
@@ -104,7 +117,7 @@ public class GalleryController {
         ListingContext listingContext = new ListingContext();
         listingContext.setAllowCustomImageSizes(allowCustomImageSizes);
         listingContext.setImageFormats(imageFormats);
-        listingContext.setVideoFormats(galleryService.getAvailableVideoModes());
+        listingContext.setVideoFormats(videoFormats);
         SearchResult searchResult = gallerySearchService.search(publicPath, searchTerm);
         listingContext.setMedia(convertToGalleryFileHolders(contextPath, searchResult.files()));
         listingContext.setDirectories(convertToGalleryDirectoryHolders(contextPath, searchResult.directories()));
