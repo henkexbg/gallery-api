@@ -108,17 +108,22 @@ public class GalleryController {
      */
     @GetMapping("/service/{*filePath}")
     public ListingContext query(HttpServletRequest servletRequest, @PathVariable String filePath,
-                                @RequestParam(required = false, value = "searchTerm") String searchTerm) throws Exception {
+                                @RequestParam(required = false, value = "searchTerm") String searchTerm,
+                                @RequestParam(required = false, value = "startPage") Integer startPage,
+                                @RequestParam(required = false, value = "pageSize") Integer pageSize) throws Exception {
         long startTime = System.currentTimeMillis();
         // Extracted public path starts with '/', public path does not
-        String publicPath = filePath.substring(1);
+        String publicPath = extractPublicPath(filePath);
         String contextPath = servletRequest.getContextPath();
         LOG.debug("Entering getListing(path={})", publicPath);
         ListingContext listingContext = new ListingContext();
         listingContext.setAllowCustomImageSizes(allowCustomImageSizes);
         listingContext.setImageFormats(imageFormats);
         listingContext.setVideoFormats(videoFormats);
-        SearchResult searchResult = gallerySearchService.search(publicPath, searchTerm);
+        int sp = (startPage == null || startPage < 0) ? 0 : startPage;
+        int ps = (pageSize == null || pageSize <= 0) ? 100 : pageSize;
+        GallerySearchService.SearchQuery query = new GallerySearchService.SearchQuery(publicPath, searchTerm, sp, ps);
+        SearchResult searchResult = gallerySearchService.search(query);
         listingContext.setMedia(convertToGalleryFileHolders(contextPath, searchResult.files()));
         listingContext.setDirectories(convertToGalleryDirectoryHolders(contextPath, searchResult.directories()));
         LOG.debug("Found {} media files, {} directories in {} milliseconds", searchResult.files(), searchResult.directories().size(),
@@ -210,6 +215,25 @@ public class GalleryController {
             throw new ResourceNotFoundException();
         }
         return returnResource(request, galleryFile);
+    }
+
+    /**
+     * Extracts the public path from the file path that is provided by the controller endpoint. There are a few edge cases that need to be
+     * handled to get the "proper" public path.
+     *
+     * @param filePathFromRequest File path from controller method
+     * @return The public path, or null
+     */
+    private String extractPublicPath(String filePathFromRequest) {
+        String publicPath;
+        if (StringUtils.isBlank(filePathFromRequest)) {
+            publicPath = null;
+        } else if (filePathFromRequest.startsWith("/")) {
+            publicPath = filePathFromRequest.substring(1);
+        } else {
+            publicPath = filePathFromRequest;
+        }
+        return publicPath;
     }
 
     /**

@@ -11,7 +11,6 @@ import jakarta.annotation.PreDestroy;
 import jakarta.annotation.Resource;
 import org.apache.commons.io.filefilter.FileFilterUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.Strings;
 import org.jdbi.v3.core.Jdbi;
 import org.jdbi.v3.core.statement.Query;
 import org.jdbi.v3.core.statement.Update;
@@ -21,7 +20,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.*;
 import java.util.*;
@@ -30,11 +28,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import static com.github.henkexbg.gallery.util.GalleryFileUtils.getPathName;
+import static com.github.henkexbg.gallery.util.GalleryFileUtils.*;
 import static org.apache.commons.io.FileUtils.listFilesAndDirs;
 
 @Service
 public class GallerySearchService implements GalleryRootDirChangeListener {
+
+    public static final int MAX_PAGE_SIZE = 2000;
 
     final Logger LOG = LoggerFactory.getLogger(getClass());
 
@@ -78,22 +78,21 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         }
     }
 
-    public SearchResult search(String publicPath, String searchTerm) throws IOException, NotAllowedException {
-        List<String> publicPaths = new ArrayList<>();
+    public SearchResult search(SearchQuery searchQuery) throws IOException, NotAllowedException {
+        String publicPath = searchQuery.publicPath();
         List<String> basePathSearchTerms = new ArrayList<>();
         if (StringUtils.isNotBlank(publicPath)) {
-            publicPaths.add(publicPath);
-            basePathSearchTerms.add(galleryAuthorizationService.getRealFileOrDir(publicPath).getCanonicalPath() + "%");
+            basePathSearchTerms.add(galleryAuthorizationService.getRealFileOrDir(publicPath).getCanonicalPath() + "_%");
         } else {
             galleryAuthorizationService.getRootPathsForCurrentUser().forEach((k, v) -> {
                 try {
-                    publicPaths.add(k);
-                    basePathSearchTerms.add(v.getCanonicalPath() + "%");
+                    basePathSearchTerms.add(v.getCanonicalPath() + "_%");
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
             });
         }
+        String searchTerm = searchQuery.searchTerm();
         LOG.debug("Performing search with publicPath={}, basePaths={} searchTerm={}", publicPath, basePathSearchTerms, searchTerm);
 
         List<String> searchTerms = searchTerm != null ?
@@ -116,6 +115,11 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
             sb.append(")");
         }
         sb.append(" ORDER BY f.date_taken DESC");
+        // Add pagination
+        int startPage = Math.max(0, searchQuery.startPage());
+        int pageSize = searchQuery.pageSize() <= 0 ? MAX_PAGE_SIZE : searchQuery.pageSize();
+        int offset = Math.max(0, startPage * pageSize);
+        sb.append(" LIMIT :limit OFFSET :offset");
 
         String fullQuery = sb.toString();
         List<DbFile> list = new ArrayList<>();
@@ -129,13 +133,15 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
                 for (int i = 0; i < searchTerms.size(); i++) {
                     query.bind("term%s".formatted(i), searchTerms.get(i));
                 }
+                query.bind("limit", pageSize);
+                query.bind("offset", offset);
                 list.addAll(query.mapTo(DbFile.class).stream().toList());
             });
         } catch (Exception e) {
             LOG.error("Error when performing database search", e);
             throw new IOException(e);
         }
-        LOG.debug("Performing database search took {}ms", System.currentTimeMillis() - startQueryTime);
+        LOG.debug("Performing database search took {}ms (page={}, pageSize={}, offset={})", System.currentTimeMillis() - startQueryTime, startPage, pageSize, offset);
         List<GalleryFile> galleryFiles =
                 list.stream().filter(df -> !df.getIsDirectory()).map(this::createGalleryFileFromDbFile).filter(Objects::nonNull).toList();
         List<GalleryDirectory> galleryDirectories =
@@ -411,7 +417,7 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
                     throw new IOException("File %s did not have a valid parent directory".formatted(file.getCanonicalPath()));
                 }
                 Long fileId = handle.createUpdate(mergeQuery).bind("parent_id", parentId).bind("path_on_disk", file.getCanonicalPath())
-                        .bind("file_type", isVideo(contentType) ? "video" : "image").bind("content_type", contentType)
+                        .bind("file_type", isVideo(file) ? "video" : "image").bind("content_type", contentType)
                         .bind("location", point)
                         .bind("date_taken", metadata.dateTaken() != null ? new Timestamp(metadata.dateTaken().toEpochMilli()) : null)
                         .bind("nearest_location_id", nearestLocation != null ? nearestLocation.getPk() : null)
@@ -419,7 +425,6 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
 
                 atomicFileId.set(fileId);
             });
-
             updateFilenameTags(file, atomicFileId.get());
             updateLocationTags(file, atomicFileId.get(), nearestLocation);
         } catch (Exception e) {
@@ -463,22 +468,6 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         }
     }
 
-    /**
-     * Determines the content type for a given file. Will delegate to JVM/operating system.
-     *
-     * @param file File.
-     * @return Content type for given file.
-     * @throws IOException If there's an error finding the content type
-     */
-    String getContentType(File file) throws IOException {
-        return Files.probeContentType(file.toPath());
-    }
-
-    boolean isVideo(String contentType) {
-        return Strings.CS.startsWith(contentType, "video");
-    }
-
-
     Collection<File> getRootDirectoriesForCurrentUser() throws IOException {
         Map<String, File> rootPathsForCurrentUser = galleryAuthorizationService.getRootPathsForCurrentUser();
         return rootPathsForCurrentUser.values();
@@ -492,5 +481,6 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         return allDirectories;
     }
 
+    public record SearchQuery(String publicPath, String searchTerm, int startPage, int pageSize) {}
 }
 

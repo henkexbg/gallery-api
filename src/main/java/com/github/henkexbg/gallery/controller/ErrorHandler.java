@@ -3,6 +3,8 @@ package com.github.henkexbg.gallery.controller;
 import com.github.henkexbg.gallery.controller.exception.ResourceNotFoundException;
 import com.github.henkexbg.gallery.controller.model.GalleryError;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -12,6 +14,8 @@ import java.io.FileNotFoundException;
 
 @ControllerAdvice
 public class ErrorHandler {
+
+    private final Logger LOG = LoggerFactory.getLogger(getClass());
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<GalleryError> handleException(Exception ex) {
@@ -27,9 +31,11 @@ public class ErrorHandler {
         } else {
             responseStatus = HttpStatus.INTERNAL_SERVER_ERROR;
             errorMessage = "Internal Server Error";
+            LOG.error("Unspecified error", ex);
         }
         error.setErrorCode(responseStatus.value());
         error.setErrorMessage(errorMessage);
+        LOG.info("Returning error: {}", error);
         return new ResponseEntity<>(error, responseStatus);
     }
 
