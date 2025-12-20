@@ -37,6 +37,7 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
     public static final int MAX_PAGE_SIZE = 2000;
 
     final Logger LOG = LoggerFactory.getLogger(getClass());
+    final Map<String, String> ISO_COUNTRY_NAME_MAP;
 
     @Resource
     GalleryAuthorizationService galleryAuthorizationService;
@@ -59,6 +60,15 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
     DirectoryWatcher directoryWatcher = null;
 
     Deduplicator deduplicator;
+
+    public GallerySearchService() {
+        ISO_COUNTRY_NAME_MAP = new HashMap<>();
+        String[] isoCountries = Locale.getISOCountries();
+        for (String country : isoCountries) {
+            Locale locale = new Locale("en", country);
+            ISO_COUNTRY_NAME_MAP.put(locale.getCountry(), locale.getDisplayCountry());
+        }
+    }
 
     @PostConstruct
     public void init() {
@@ -122,10 +132,10 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         sb.append(" LIMIT :limit OFFSET :offset");
 
         String fullQuery = sb.toString();
-        List<DbFile> list = new ArrayList<>();
+        List<DbFile> list;
         long startQueryTime = System.currentTimeMillis();
         try {
-            jdbi.useHandle(handle -> {
+            list = jdbi.withHandle(handle -> {
                 Query query = handle.createQuery(fullQuery);
                 for (int i = 0; i < basePathSearchTerms.size(); i++) {
                     query.bind("path%s".formatted(i), basePathSearchTerms.get(i));
@@ -135,7 +145,7 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
                 }
                 query.bind("limit", pageSize);
                 query.bind("offset", offset);
-                list.addAll(query.mapTo(DbFile.class).stream().toList());
+                return query.mapTo(DbFile.class).stream().toList();
             });
         } catch (Exception e) {
             LOG.error("Error when performing database search", e);
@@ -306,21 +316,10 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
                 SELECT id FROM gallery_file
                 WHERE path_on_disk = :path_on_disk
                 """;
-        final String mergeQueryRootDir = """
-                MERGE INTO gallery_file (path_on_disk, is_directory, last_modified)
-                KEY (path_on_disk)
-                VALUES (:path_on_disk, true, :last_modified)
-                """;
         final String mergeQueryChildDir = """
                 MERGE INTO gallery_file (parent_id, path_on_disk, is_directory, last_modified)
                 KEY (path_on_disk)
                 VALUES (:parent_id, :path_on_disk, true, :last_modified)
-                """;
-        final String deleteFilenamePartsQuery = """
-                DELETE FROM filename_part WHERE file_id = :file_id
-                """;
-        final String updateFilenamePartsQuery = """
-                INSERT INTO filename_part (file_id, part_index, part) VALUES (:file_id, :part_index, :part)
                 """;
         try {
             if (isDbUpToDate(directory)) {
@@ -344,12 +343,6 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
 
                 long directoryPk = updateQueryObj.executeAndReturnGeneratedKeys().mapTo(Long.class).one();
                 atomicDirectoryPk.set(directoryPk);
-
-                handle.createUpdate(deleteFilenamePartsQuery).bind("file_id", directoryPk).execute();
-                for (int i = 0; i < filenameParts.size(); i++) {
-                    handle.createUpdate(updateFilenamePartsQuery).bind("file_id", directoryPk).bind("part_index", i)
-                            .bind("part", filenameParts.get(i)).execute();
-                }
             });
             updateFilenameTags(directory, atomicDirectoryPk.get());
         } catch (Exception e) {
@@ -395,12 +388,9 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
                     WHERE path_on_disk = :path_on_disk
                     """;
             final String mergeQuery = """
-                    MERGE INTO gallery_file (parent_id, path_on_disk, is_directory, file_type, content_type, location, date_taken, nearest_location_id, last_modified)
+                    MERGE INTO gallery_file (parent_id, path_on_disk, is_directory, file_type, content_type, location, date_taken, last_modified)
                     KEY (path_on_disk)
-                    VALUES (:parent_id, :path_on_disk, false, :file_type, :content_type, :location, :date_taken, :nearest_location_id, :last_modified)
-                    """;
-            final String findNearestLocationQuery = """
-                    SELECT * FROM location ORDER BY ST_Distance(the_geom, ST_GeomFromText(:location, 4326)) LIMIT 1
+                    VALUES (:parent_id, :path_on_disk, false, :file_type, :content_type, :location, :date_taken, :last_modified)
                     """;
             String parentPath = file.getParentFile().getCanonicalPath();
             MetadataExtractionService.FileMetaData metadata = metadataExtractionService.getMetadata(file);
@@ -408,8 +398,6 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
                     "POINT(%s %s)".formatted(metadata.gpsLongitude(), metadata.gpsLatitude()) : null;
             String contentType = getContentType(file);
             AtomicLong atomicFileId = new AtomicLong();
-            Location nearestLocation = point != null ? jdbi.withHandle(
-                    handle -> handle.createQuery(findNearestLocationQuery).bind("location", point).mapTo(Location.class).one()) : null;
 
             jdbi.useHandle(handle -> {
                 Integer parentId = handle.createQuery(findParentQuery).bind("path_on_disk", parentPath).mapTo(Integer.class).one();
@@ -420,16 +408,51 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
                         .bind("file_type", isVideo(file) ? "video" : "image").bind("content_type", contentType)
                         .bind("location", point)
                         .bind("date_taken", metadata.dateTaken() != null ? new Timestamp(metadata.dateTaken().toEpochMilli()) : null)
-                        .bind("nearest_location_id", nearestLocation != null ? nearestLocation.getPk() : null)
                         .bind("last_modified", new Timestamp(file.lastModified())).executeAndReturnGeneratedKeys().mapTo(Long.class).one();
 
                 atomicFileId.set(fileId);
             });
             updateFilenameTags(file, atomicFileId.get());
-            updateLocationTags(file, atomicFileId.get(), nearestLocation);
+            if (metadata.gpsLatitude() != null &&  metadata.gpsLongitude() != null) {
+                List<Location> nearestLocations = getNearestLocations(metadata.gpsLongitude(), metadata.gpsLatitude());
+                updateLocationTags(file, atomicFileId.get(), nearestLocations);
+            }
+
         } catch (Exception e) {
             throw new IOException(e);
         }
+    }
+
+    List<Location> getNearestLocations(double lon, double lat) {
+        final List<Double> intervals = List.of(0.1d, 1d, 10d);
+        final String query = """
+                WITH candidates AS (
+                    SELECT id, the_geom, name, country_iso_a2, feature_code
+                    FROM location
+                    WHERE the_geom && ST_Envelope(
+                        ST_Buffer(
+                            ST_GeomFromText(:location, 4326),
+                            :interval
+                        )
+                    )
+                )
+                SELECT id, the_geom, name, country_iso_a2, feature_code
+                FROM candidates
+                ORDER BY ST_Distance(the_geom, ST_GeomFromText(:location, 4326))
+                LIMIT 5;
+                """;
+        String point = "POINT(%s %s)".formatted(lon, lat);
+        List<Location> locations = null;
+        for (Double interval : intervals) {
+            locations = jdbi.withHandle(handle ->
+                    handle.createQuery(query).bind("location", point).bind("interval", interval).mapTo(Location.class).list()
+            );
+            if (!locations.isEmpty()) {
+                LOG.debug("Found {} nearest locations for interval {}", locations.size(), interval);
+                break;
+            }
+        }
+        return locations.stream().collect(Collectors.groupingBy(Location::getFeatureCode)).values().stream().map(List::getFirst).toList();
     }
 
     void updateFilenameTags(File fileOrDir, long fileId) throws IOException {
@@ -437,16 +460,23 @@ public class GallerySearchService implements GalleryRootDirChangeListener {
         updateTagsForSource(fileOrDir, fileId, "FILENAME", filenameParts);
     }
 
-    void updateLocationTags(File fileOrDir, long fileId, Location location) throws IOException {
-        if (location == null) {
-            return;
+    void updateLocationTags(File fileOrDir, long fileId, List<Location> locations) throws IOException {
+        Set<String> locationParts = new HashSet<>();
+        for (Location location : locations) {
+            String countryName = ISO_COUNTRY_NAME_MAP.get(location.getCountryIsoA2());
+            if (countryName == null) {
+                LOG.warn("ISO code {} is not a valid country. Ignoring", location.getCountryIsoA2());
+                continue;
+            }
+            locationParts.add(location.getName());
+            locationParts.add(countryName);
+            locationParts.add(location.getCountryIsoA2());
+            locationParts.add(location.getFeatureCode());
         }
-        List<String> locationParts =
-                List.of(location.getName(), location.getCountryName(), location.getAdm1Name(), location.getCountryIsoA2());
         updateTagsForSource(fileOrDir, fileId, "LOCATION", locationParts);
     }
 
-    void updateTagsForSource(File fileOrDir, long fileId, String source, List<String> newTags) throws IOException {
+    void updateTagsForSource(File fileOrDir, long fileId, String source, Collection<String> newTags) throws IOException {
         final String deleteTagsQuery = """
                 DELETE FROM tag WHERE source = :source AND file_id = :file_id
                 """;

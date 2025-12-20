@@ -13,8 +13,6 @@ public class DbFile {
     @ColumnName("is_directory")
     private Boolean isDirectory;
     private Geometry location;
-    @ColumnName("location_name")
-    private String locationName;
     @ColumnName("file_type")
     private String fileType;
     @ColumnName("content_type")
@@ -54,14 +52,6 @@ public class DbFile {
 
     public void setLocation(Geometry location) {
         this.location = location;
-    }
-
-    public String getLocationName() {
-        return locationName;
-    }
-
-    public void setLocationName(String locationName) {
-        this.locationName = locationName;
     }
 
     public String getFileType() {

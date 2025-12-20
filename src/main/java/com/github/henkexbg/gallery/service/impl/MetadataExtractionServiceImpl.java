@@ -9,6 +9,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -25,20 +26,17 @@ import java.util.Map;
 public class MetadataExtractionServiceImpl implements MetadataExtractionService {
 
     private static final String CREATE_DATE_DATE_FORMAT = "yyyy:MM:dd HH:mm:ss";
-    private final Logger LOG = LoggerFactory.getLogger(getClass());
 
-    private final DateTimeFormatter dateTimeFormatter = new DateTimeFormatterBuilder()
+    private final Logger LOG = LoggerFactory.getLogger(getClass());
+    private final DateTimeFormatter DATE_TIME_FORMATTER = new DateTimeFormatterBuilder()
             .appendPattern(CREATE_DATE_DATE_FORMAT)
             .toFormatter()
             .withZone(ZoneId.of("UTC"));
 
-    private String exiftoolPath;
+    @Value("${gallery.metadata.exiftoolPath}")
+    String exiftoolPath;
 
-    private ExifTool exifTool;
-
-    public void setExiftoolPath(String exiftoolPath) {
-        this.exiftoolPath = exiftoolPath;
-    }
+    ExifTool exifTool;
 
     @PostConstruct
     public void init() {
@@ -53,7 +51,7 @@ public class MetadataExtractionServiceImpl implements MetadataExtractionService 
         try {
             String dateString = imageMeta.get(StandardTag.CREATE_DATE);
             if (dateString != null) {
-                dateTaken = dateTimeFormatter.parse(dateString, Instant::from);
+                dateTaken = DATE_TIME_FORMATTER.parse(dateString, Instant::from);
             }
         } catch (DateTimeParseException dtpe) {
             LOG.warn("Could not retrieve {} from image EXIF. Using lastModified on file", file.getCanonicalPath());

@@ -5,23 +5,21 @@ import org.locationtech.jts.geom.Geometry;
 
 public class Location {
 
-    private Integer pk;
+    private long id;
     @ColumnName("the_geom")
     private Geometry theGeom;
     private String name;
-    @ColumnName("country_name")
-    private String countryName;
     @ColumnName("country_iso_a2")
     private String countryIsoA2;
-    @ColumnName("adm1name")
-    private String adm1Name;
+    @ColumnName("feature_code")
+    private String featureCode;
 
-    public Integer getPk() {
-        return pk;
+    public long getId() {
+        return id;
     }
 
-    public void setPk(Integer pk) {
-        this.pk = pk;
+    public void setId(long id) {
+        this.id = id;
     }
 
     public Geometry getTheGeom() {
@@ -40,14 +38,6 @@ public class Location {
         this.name = name;
     }
 
-    public String getCountryName() {
-        return countryName;
-    }
-
-    public void setCountryName(String countryName) {
-        this.countryName = countryName;
-    }
-
     public String getCountryIsoA2() {
         return countryIsoA2;
     }
@@ -56,11 +46,11 @@ public class Location {
         this.countryIsoA2 = countryIsoA2;
     }
 
-    public String getAdm1Name() {
-        return adm1Name;
+    public String getFeatureCode() {
+        return featureCode;
     }
 
-    public void setAdm1Name(String adm1Name) {
-        this.adm1Name = adm1Name;
+    public void setFeatureCode(String featureCode) {
+        this.featureCode = featureCode;
     }
 }

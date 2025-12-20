@@ -17,8 +17,10 @@ gallery.groupDirAuth.propertiesFile=/full/path/to/gallery-config/gallery-auth-di
 # This should point to the binary used for video conversion, for instance
 # avconv or ffmpeg. Either just the name or the full path can be entered,
 # depending on the environment.
-gallery.videoConversion.binary=/full/path/to/ffmpeg/bin/ffmpeg.exe
-#gallery.videoConversion.binary=avconv
+gallery.videoConversion.binary=/full/path/to/ffmpeg/bin/ffmpeg
+
+# Points to the exiftool binary, which is used to extract metadata from media
+gallery.metadata.exiftoolPath=/full/path/to/exiftool
 
 # Writes all videos that could not successfully be converted. Once on the list,
 # no further attempt will be made to convert that video.
@@ -31,10 +33,6 @@ gallery.videoConversion.blacklistedVideosFile=/full/path/to/gallery-config/galle
 # Defines whether user-defined images sizes should be allowed per request. If
 # false, only specific image formats are allowed.
 gallery.allowCustomImageSizes=false
-
-# If true, listing responses will contain images and videos separately.
-# If false, images and videos will be returned mixed in the media attribute.
-gallery.separateImagesAndVideos=false
 
 # Comma-separated list of allowed image and video formats. Case doesn't matter.
 gallery.allowedFileExtensions=jpeg,jpg,png,gif,mp4
@@ -67,7 +65,7 @@ gallery.image-formats[3].height=300
 # String 3 will be the output file. 
 #This property has been tested successfully with ffmpeg
 gallery.video.conversion-modes.COMPACT=%s,-v,quiet,-i,%s,%s
-#The below config has been tested successfully with avconv
+# The below config has been tested successfully with avconv
 #gallery.video.conversion-modes.COMPACT=%s,-i,%s,-strict,experimental,%s
 
 # Template for the external execution of generating a screenshot from a video.
@@ -104,6 +102,10 @@ gallery.web.allowedOrigins=*
 # Sets the cache header for images and videos. All service requests returning
 # JSON are non-cached.
 gallery.mediaResourcesCacheHeader=private, max-age=31536000
+
+# URI linking to the Geonames file containing location data for the whole world.
+# Can be a URL or a local file if prefixed with file://
+gallery.location.source.default.uri=https://download.geonames.org/export/dump/allCountries.zip
 
 ###############################################################################
 # SPRING BOOT CONFIG
