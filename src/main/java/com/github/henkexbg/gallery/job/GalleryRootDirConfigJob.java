@@ -19,7 +19,7 @@
  * SOFTWARE.
  * 
  */
-package com.github.henkexbg.gallery.service.impl;
+package com.github.henkexbg.gallery.job;
 
 import java.io.File;
 import java.io.FileReader;
@@ -33,17 +33,19 @@ import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Properties;
+import java.util.*;
+import java.util.stream.Collectors;
 
+import com.github.henkexbg.gallery.job.listener.FileChangeListener;
+import com.github.henkexbg.gallery.job.listener.GalleryRootDirChangeListener;
+import com.github.henkexbg.gallery.service.Deduplicator;
+import io.methvin.watcher.DirectoryWatcher;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.henkexbg.gallery.job.GalleryRootDirChangeListener;
 import com.github.henkexbg.gallery.bean.GalleryRootDir;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -62,12 +64,17 @@ public class GalleryRootDirConfigJob {
     private final Logger LOG = LoggerFactory.getLogger(getClass());
 
     @Resource
-    private Collection<GalleryRootDirChangeListener> galleryRootDirChangeListeners;
+    Collection<FileChangeListener> fileChangeListeners;
+
+    @Resource
+    Collection<GalleryRootDirChangeListener> galleryRootDirChangeListeners;
 
     @Value("${gallery.groupDirAuth.propertiesFile}")
-    private File configFile;
+    File configFile;
 
     private WatchService watcher;
+    private DirectoryWatcher directoryWatcher = null;
+    private Deduplicator deduplicator;
 
     @PostConstruct
     public void setUp() throws IOException {
@@ -78,6 +85,13 @@ public class GalleryRootDirConfigJob {
         // Kick of watcher thread
         Runnable fileWatcher = this::watchForChanges;
         new Thread(fileWatcher).start();
+
+        LOG.info("Creating Deduplicator");
+        deduplicator = new Deduplicator();
+        deduplicator.addListener((paths) -> {
+            Set<File> files = paths.stream().map(Path::toFile).collect(Collectors.toCollection(HashSet::new));
+            notifyFileChangeListeners(files, Set.of());
+        });
     }
 
     @PreDestroy
@@ -87,14 +101,9 @@ public class GalleryRootDirConfigJob {
         } catch (IOException ioe) {
             LOG.info("Exception while closing watcher", ioe);
         }
-    }
-
-    public void setConfigFile(File configFile) {
-        this.configFile = configFile;
-    }
-
-    public void setGalleryRootDirChangeListeners(Collection<GalleryRootDirChangeListener> galleryRootDirChangeListeners) {
-        this.galleryRootDirChangeListeners = galleryRootDirChangeListeners;
+        if (deduplicator != null) {
+            deduplicator.stop();
+        }
     }
 
     private void updateConfigFromFile() throws IOException {
@@ -112,8 +121,7 @@ public class GalleryRootDirConfigJob {
                 oneRootDir.setDir(new File(v.toString()));
             }
         });
-        galleryRootDirChangeListeners.forEach(r -> r.onGalleryRootDirsUpdated(newRootDirs));
-        LOG.debug("Done notifying listeners");
+        handleUpdatedRootDirs(newRootDirs);
     }
 
     private void watchForChanges() {
@@ -151,6 +159,59 @@ public class GalleryRootDirConfigJob {
         } catch (IOException ioe) {
             LOG.error("Exception in filewatcher loop. Exiting.", ioe);
         }
+    }
+
+    private synchronized void handleUpdatedRootDirs(Collection<GalleryRootDir> galleryRootDirs) {
+        LOG.debug("onGalleryRootDirsUpdated(galleryRootDirs: {}", galleryRootDirs);
+        notifyGalleryRootDirChangeListeners(galleryRootDirs);
+        List<Path> rootDirs = galleryRootDirs.stream().map(grd -> grd.getDir().toPath()).toList();
+        LOG.debug("Found {} directories to watch for search service", rootDirs.size());
+        try {
+            if (directoryWatcher != null) {
+                directoryWatcher.close();
+            }
+            directoryWatcher = DirectoryWatcher.builder().paths(rootDirs) // or use paths(directoriesToWatch)
+                    .listener(event -> {
+                        switch (event.eventType()) {
+                            case CREATE, MODIFY:
+                                // Run via deduplicator to remove duplicates. Not required for DELETE
+                                deduplicator.add(event.path());
+                                break;
+                            case DELETE:
+                                notifyFileChangeListeners(Collections.emptySet(), Set.of(event.path().toFile()));
+                                break;
+                        }
+                    }).fileHashing(false)
+                    .build();
+            LOG.debug("Built directory watcher for search service. About to start watching");
+            directoryWatcher.watchAsync();
+        } catch (IOException ioe) {
+            LOG.error("Exception while reading gallery root directories for DB indexing", ioe);
+        }
+        LOG.debug("Done adding directory watcher for search service");
+    }
+
+    void notifyFileChangeListeners(Set<File> upsertedFiles, Set<File> deletedFiles) {
+        fileChangeListeners.forEach(r -> {
+            try {
+                r.onFilesUpdated(upsertedFiles, deletedFiles);
+            } catch (Exception e) {
+                LOG.error("Exception while notifying file listeners", e);
+            }
+        });
+        LOG.debug("Done notifying fileChangeListeners");
+    }
+
+    void notifyGalleryRootDirChangeListeners(Collection<GalleryRootDir> rootDirs) {
+        galleryRootDirChangeListeners.forEach(r -> {
+            try {
+            r.onGalleryRootDirsUpdated(rootDirs);
+            } catch (Exception e) {
+                LOG.error("Exception while notifying gallery root dir listeners", e);
+            }
+
+        });
+        LOG.debug("Done notifying galleryRootDirChangeListeners");
     }
 
 }

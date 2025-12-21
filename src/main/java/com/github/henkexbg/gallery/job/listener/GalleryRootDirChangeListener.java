@@ -19,7 +19,7 @@
  * SOFTWARE.
  * 
  */
-package com.github.henkexbg.gallery.job;
+package com.github.henkexbg.gallery.job.listener;
 
 import java.util.Collection;
 

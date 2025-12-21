@@ -37,7 +37,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.github.henkexbg.gallery.bean.GalleryRootDir;
 import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
-import com.github.henkexbg.gallery.job.GalleryRootDirChangeListener;
+import com.github.henkexbg.gallery.job.listener.GalleryRootDirChangeListener;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 import org.springframework.stereotype.Component;
 
