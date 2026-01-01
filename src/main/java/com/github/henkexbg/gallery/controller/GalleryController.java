@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 
 import com.github.henkexbg.gallery.bean.SearchResult;
+import com.github.henkexbg.gallery.bean.UserInfo;
+import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
 import com.github.henkexbg.gallery.service.GallerySearchService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
@@ -80,6 +82,9 @@ public class GalleryController {
     @Resource
     private GallerySearchService gallerySearchService;
 
+    @Resource
+    private GalleryAuthorizationService galleryAuthorizationService;
+
     @Value("${gallery.allowCustomImageSizes}")
     private boolean allowCustomImageSizes = false;
 
@@ -95,6 +100,11 @@ public class GalleryController {
     public void init() {
         videoFormats = new ArrayList<>(videoConversionModes.keySet());
         videoFormats.add("ORIGINAL");
+    }
+
+    @GetMapping("/user")
+    public UserInfo getUserInfo() {
+        return galleryAuthorizationService.getCurrentUserInfo();
     }
 
     /**

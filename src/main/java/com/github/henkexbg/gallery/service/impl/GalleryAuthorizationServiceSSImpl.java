@@ -27,6 +27,7 @@ import java.io.Serial;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.github.henkexbg.gallery.bean.UserInfo;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -121,7 +122,7 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
 		Map<String, Map<String, File>> rootPathsPerRoleMap = new HashMap<>();
 		for (String oneRole : allRoles) {
 			Map<String, File> rootPathsForRoles = galleryRootDirs.stream().filter(rd -> oneRole.equals(rd.getRole()))
-					.collect(Collectors.toMap(GalleryRootDir::getName, GalleryRootDir::getDir, (dir1, dir2) -> dir1));
+					.collect(Collectors.toMap(GalleryRootDir::getName, GalleryRootDir::getDir, (dir1, _) -> dir1));
 			rootPathsPerRoleMap.put(oneRole, rootPathsForRoles);
 		}
 		this.rootPathsPerRoleMap = rootPathsPerRoleMap;
@@ -142,6 +143,12 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
     @Override
     public boolean isAdmin() {
         return getCurrentUserRoles().contains("ROLE_ADMIN");
+    }
+
+    @Override
+    public UserInfo getCurrentUserInfo() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return new UserInfo(authentication.getName(), new ArrayList<>(getCurrentUserRoles()));
     }
 
 	/**

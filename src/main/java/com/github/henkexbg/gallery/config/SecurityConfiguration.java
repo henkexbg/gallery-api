@@ -1,7 +1,9 @@
 package com.github.henkexbg.gallery.config;
 
+import com.github.henkexbg.gallery.security.CustomAuthenticationEntryPoint;
 import com.github.henkexbg.gallery.security.CustomCsrfSecurityFilter;
 import com.github.henkexbg.gallery.security.CustomSuccessHandler;
+import jakarta.annotation.Priority;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -60,16 +62,56 @@ public class SecurityConfiguration {
     }
 
     @Bean
+    public CustomAuthenticationEntryPoint customAuthenticationEntryPoint() {
+        return new CustomAuthenticationEntryPoint();
+    }
+
+    @Bean
     public UserDetailsService userDetailsService() {
         return new InMemoryUserDetailsManager(usersProperties);
     }
 
+    /**
+     * Filter chain for all service methods. Both basic auth and session based auth are allowed.
+     *
+     * @param http HttpSecurity
+     * @return A configured security filter chain
+     * @throws Exception If any error occurs
+     */
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    @Priority(3)
+    public SecurityFilterChain serviceFilterChain(HttpSecurity http) throws Exception {
+        return commonSecuredFilterChain(http, "/service/**", "/image/**", "/customImage/**", "/video/**").httpBasic(
+                Customizer.withDefaults()).build();
+    }
+
+    /**
+     * Filter chain for all session-based user methods, including login and logout. Basic auth is not allowed.
+     *
+     * @param http HttpSecurity
+     * @return A configured security filter chain
+     * @throws Exception If any error occurs
+     */
+    @Bean
+    @Priority(5)
+    public SecurityFilterChain sessionUserFilterChain(HttpSecurity http) throws Exception {
+        return commonSecuredFilterChain(http, "/user", "/login", "/logout").formLogin(
+                formLogin -> formLogin.loginPage("/login").permitAll().successHandler(customSuccessHandler())).build();
+    }
+
+    /**
+     * Public files require no authentication. This is the catch-all.
+     *
+     * @param http HttpSecurity
+     * @return A configured security filter chain
+     * @throws Exception If any error occurs
+     */
+    @Bean
+    @Priority(10)
+    public SecurityFilterChain publicFilesFilterChain(HttpSecurity http) throws Exception {
         http.cors(_ -> corsConfigurationSource()).csrf(AbstractHttpConfigurer::disable)
                 .addFilterBefore(customCsrfSecurityFilter(), CsrfFilter.class).securityMatcher("/**")
-                .authorizeHttpRequests((authorize) -> authorize.anyRequest().authenticated()).httpBasic(Customizer.withDefaults())
-                .formLogin(formLogin -> formLogin.loginPage("/login").permitAll().successHandler(customSuccessHandler()));
+                .authorizeHttpRequests((authorize) -> authorize.anyRequest().permitAll());
         return http.build();
     }
 
@@ -101,5 +143,19 @@ public class SecurityConfiguration {
         return source;
     }
 
-
+    /**
+     * Common configuration for all secured endpoints.
+     *
+     * @param http            HttpSecurity
+     * @param requestMatchers List of request matchers (patterns)
+     * @return A (partially) configured filter chain
+     * @throws Exception If any error occurs
+     */
+    private HttpSecurity commonSecuredFilterChain(HttpSecurity http, String... requestMatchers) throws Exception {
+        return http.cors(_ -> corsConfigurationSource()).csrf(AbstractHttpConfigurer::disable)
+                .addFilterBefore(customCsrfSecurityFilter(), CsrfFilter.class)
+                .securityMatchers(s -> s.requestMatchers(requestMatchers))
+                .authorizeHttpRequests((authorize) -> authorize.anyRequest().authenticated())
+                .exceptionHandling(eh -> eh.authenticationEntryPoint(customAuthenticationEntryPoint()));
+    }
 }

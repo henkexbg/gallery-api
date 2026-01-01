@@ -2,17 +2,36 @@
 # ENVIRONMENT-SPECIFIC (MOSTLY REQUIRED) CONFIG
 ###############################################################################
 
-# This is where resized images and converted videos will be stored.
+# Base directory of application
+gallery.baseDir=/full/path/to/gallery
+
+# H2 database location. This will be automatically created on first run
+gallery.h2.connectionString=jdbc:h2:${gallery.baseDir}/h2/h2;DB_CLOSE_DELAY=-1
+
+# Properties file with user, group and password info for Spring security. See separate template for more details.
+gallery.users.propertiesFile=${gallery.baseDir}/config/gallery-users.properties
+
+# This should point to the properties file that defines the authorization mapping between user groups and directories.
+# See separate template for more details.
+gallery.groupDirAuth.propertiesFile=${gallery.baseDir}/config/gallery-auth-dirs.properties
+
+# Writes all videos that could not successfully be converted. Once on the list, no further attempt will be made to
+convert that video.
+gallery.videoConversion.blacklistedVideosFile=${gallery.baseDir}/config/gallery-black-listed-videos.txt
+
+# Defines a directory which will contain publicly accessible static files. Essential when deployed with a front end
+spring.web.resources.static-locations=file:${gallery.baseDir}/public
+
+# This is where resized images and converted videos will be stored. This may become large
 gallery.resizeDir=/full/path/to/resize-dir
 
-# Properties file with user, group and password info for Spring security.
-# See separate template for more details.
-gallery.users.propertiesFile=/full/path/to/gallery-config/gallery-users.properties
+# States allowed origins for cross-origin requests. This property is used to control both CORS and CSRF configuration
+# Relevant if requests are made from sites under other domains.
+gallery.web.crossOrigin.allowedHosts=localhost
 
-# This should point to the properties file that defines the authorization
-# mapping between user groups and directories.
-# See separate template for more details.
-gallery.groupDirAuth.propertiesFile=/full/path/to/gallery-config/gallery-auth-dirs.properties
+###############################################################################
+# EXTERNAL BINARIES CONFIG
+###############################################################################
 
 # This should point to the binary used for video conversion, for instance
 # avconv or ffmpeg. Either just the name or the full path can be entered,
@@ -21,10 +40,6 @@ gallery.videoConversion.binary=/full/path/to/ffmpeg/bin/ffmpeg
 
 # Points to the exiftool binary, which is used to extract metadata from media
 gallery.metadata.exiftoolPath=/full/path/to/exiftool
-
-# Writes all videos that could not successfully be converted. Once on the list,
-# no further attempt will be made to convert that video.
-gallery.videoConversion.blacklistedVideosFile=/full/path/to/gallery-config/gallery-black-listed-videos.txt
 
 ###############################################################################
 # OPTIONAL CONFIG WITH DEFAULTS
@@ -94,10 +109,6 @@ gallery.imageResizing.directoryImageMaxAgeMinutes=1440
 
 # This is only needed if ImageResizeServiceIMImpl is used for resizing
 #gallery.imageMagickPath=C:/Program Files/ImageMagick-6.9.3-Q16
-
-# States allowed origins for cross-origin requests. This property is used to control both CORS and CSRF configuration
-# Relevant if requests are made from sites under other domains.
-gallery.web.crossOrigin.allowedHosts=localhost
 
 # Sets the cache header for images and videos. All service requests returning
 # JSON are non-cached.
