@@ -10,7 +10,7 @@
     <url>https://github.com/henkexbg/gallery-api</url>
     <description>REST Webapp in Java for viewing a gallery of images and videos. Image rescaling as well as video
         transcoding is performed based on request parameters. No UI included. Purely API-based. Authentication via HTTP
-        basic auth (per default). Supports different user roles.
+        basic auth or session. Supports different user roles.
     </description>
 
     <developers>

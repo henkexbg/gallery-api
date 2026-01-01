@@ -6,17 +6,6 @@ To be able to safely and easily make your images and videos available to yoursel
 
 There was also a clear intent with separation of concern in excluding any UI from this artifact - the services of this webapp can easily be consumed by any other application (see sample requests/responses below).
 
-# Demo
-http://ec2-54-206-126-4.ap-southeast-2.compute.amazonaws.com/gallery/service
- - Username: `demo`
- - Password: `demo-password`
-
-For a demo showing the optional UI (see below) on the same instance:
-
-http://ec2-54-206-126-4.ap-southeast-2.compute.amazonaws.com/gallery/
-
-Please note that the demo instance is not using HTTPS - this is **not** recommended for a real deployment.
-
 # Optional UI
 There is a separate project called Jarea Gallery that adds a React UI on top of the REST webapp, see https://github.com/henkexbg/jarea-gallery. That repository also contains build scripts for bundling the REST application with the UI into one deployable application.
 
@@ -24,7 +13,6 @@ There is a separate project called Jarea Gallery that adds a React UI on top of 
 - REST API for browsing directories
 - Serves scaled images and transcoded videos
 - Requires authentication and validates that every single request is authenticated and authorized to view the requested content
-- Packaged as a simple Spring boot application that requires only Java - no database required
 - Automatically serves newly added content
 - Images are scaled ad-hoc
 - Transcoded videos are generated via a job or ad-hoc
@@ -64,13 +52,14 @@ To retrieve the actual image, perform the replacement as mentioned above. For ex
 All images that have been resized and videos that have been transcoded are stored under a resized directory.
 
 # Prerequisites
-- Java 14
-- Maven (if building the webapp from source). Not required during runtime.
+- Java 24
+- ffmpeg - for video transpilation
+- exiftool - for extracting metadata from images
+- Maven (if building the webapp from source). Not required during runtime
 
 # Maven Artifact ID
 - Group: com.github.henkexbg
 - Artifact ID: gallery-api
-- Latest release version: 1.1.0
 
 # Download
 The whole JAR file can be downloaded from Maven Central. Latest version can be found here:
@@ -86,15 +75,16 @@ https://search.maven.org/remotecontent?filepath=com/github/henkexbg/gallery-api/
 The application uses standard Spring Boot conventions for configuration. That means, the `application.properties` file can be placed either next to the JAR file, or in a directory called config next to the JAR file (recommended). Sample configuration of `application.properties` as well as two other properties files can be found here: https://github.com/henkexbg/gallery-api/tree/master/src/main/resources/sample_config.
 
 ## application.properties
-While there are many properties that can be changed, the required ones are the following:
+Only a handful of properties are required. Several properties assume a setup of a `config` directory next to the jar file.
+The required ones are the following:
 
-| Property Name  | Description  |
-| ------------- | ------------- |
-| gallery.resizeDir | States the directory this webapp will use to store resized images and converted videos. |
-| gallery.users.propertiesFile | Points to the location of another properties file, which is used to configure the available users of the webapp and the roles of each user. See the sample file for reference. |
-| gallery.groupDirAuth.properties | Points to the location of another properties file which states which roles can access which paths. See the sample file for reference. |
-| gallery.videoConversion.binary | This should point to the binary used for video conversion, for instance avconv or ffmpeg. |
-| gallery.videoConversion.blacklistedVideosFile | The application logs all videos that could not successfully be converted. Once on the list, no further attempt will be made to convert that video. |
+| Property Name                        | Description                                                                               |
+|--------------------------------------|-------------------------------------------------------------------------------------------|
+| gallery.baseDir                      | The base directory of the application.                                                    |
+| gallery.resizeDir                    | States the directory this webapp will use to store resized images and converted videos.   |
+| gallery.web.crossOrigin.allowedHosts | Not strictly required unless a frontend is deployed on another (sub)domain.               |
+| gallery.videoConversion.binary       | This should point to the binary used for video conversion, for instance avconv or ffmpeg. |
+| gallery.metadata.exiftoolPath        | exiftool binary location.                                                                 |
 
 Template configuration: https://github.com/henkexbg/gallery-api/blob/master/src/main/resources/sample_config/application.properties.template
 
@@ -176,8 +166,6 @@ The response will contains all information of what the sample directory contains
    ],
    "comment":"Server config dictates whether custom image sizes are allowed, or only image formats",
    "allowCustomImageSizes":false,
-   "comment":"if separateImagesAndVideos is true, images will be returned in the images attribute, and videos in the videos attribute"
-   "separateImagesAndVideos":false,
    "comment":"Image formats by codes, that also display the sizes they correspond to",
    "imageFormats":[  
       {  

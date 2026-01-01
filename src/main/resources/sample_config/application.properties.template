@@ -5,23 +5,6 @@
 # Base directory of application
 gallery.baseDir=/full/path/to/gallery
 
-# H2 database location. This will be automatically created on first run
-gallery.h2.connectionString=jdbc:h2:${gallery.baseDir}/h2/h2;DB_CLOSE_DELAY=-1
-
-# Properties file with user, group and password info for Spring security. See separate template for more details.
-gallery.users.propertiesFile=${gallery.baseDir}/config/gallery-users.properties
-
-# This should point to the properties file that defines the authorization mapping between user groups and directories.
-# See separate template for more details.
-gallery.groupDirAuth.propertiesFile=${gallery.baseDir}/config/gallery-auth-dirs.properties
-
-# Writes all videos that could not successfully be converted. Once on the list, no further attempt will be made to
-convert that video.
-gallery.videoConversion.blacklistedVideosFile=${gallery.baseDir}/config/gallery-black-listed-videos.txt
-
-# Defines a directory which will contain publicly accessible static files. Essential when deployed with a front end
-spring.web.resources.static-locations=file:${gallery.baseDir}/public
-
 # This is where resized images and converted videos will be stored. This may become large
 gallery.resizeDir=/full/path/to/resize-dir
 
@@ -44,6 +27,23 @@ gallery.metadata.exiftoolPath=/full/path/to/exiftool
 ###############################################################################
 # OPTIONAL CONFIG WITH DEFAULTS
 ###############################################################################
+
+# H2 database location. This will be automatically created on first run
+gallery.h2.connectionString=jdbc:h2:${gallery.baseDir}/h2/h2;DB_CLOSE_DELAY=-1
+
+# Properties file with user, group and password info for Spring security. See separate template for more details.
+gallery.users.propertiesFile=${gallery.baseDir}/config/gallery-users.properties
+
+# This should point to the properties file that defines the authorization mapping between user groups and directories.
+# See separate template for more details.
+gallery.groupDirAuth.propertiesFile=${gallery.baseDir}/config/gallery-auth-dirs.properties
+
+# Writes all videos that could not successfully be converted. Once on the list, no further attempt will be made to
+convert that video.
+gallery.videoConversion.blacklistedVideosFile=${gallery.baseDir}/config/gallery-black-listed-videos.txt
+
+# Defines a directory which will contain publicly accessible static files. Essential when deployed with a front end
+spring.web.resources.static-locations=file:${gallery.baseDir}/public
 
 # Defines whether user-defined images sizes should be allowed per request. If
 # false, only specific image formats are allowed.

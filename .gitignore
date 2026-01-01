@@ -6,3 +6,4 @@ bin
 .idea
 logs
 config/application.properties
+src/main/resources/application.properties
