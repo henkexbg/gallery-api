@@ -44,28 +44,34 @@ public class LocationLoader {
     public void loadDataFromGeonames(URI locationFileUri) throws IOException {
         File locationFile = null;
         try {
+            String contentType = null;
             if (locationFileUri == null) {
                 locationFileUri = sourceDefaultUri;
             }
             if (locationFileUri.getScheme() != null && locationFileUri.getScheme().startsWith("http")) {
+                // Downloading http(s) URL
                 try (HttpClient httpClient = HttpClient.newHttpClient()) {
-                    // DOWNLOADING
                     HttpRequest request = HttpRequest.newBuilder(locationFileUri).GET().build();
                     HttpResponse<Path> countries =
                             httpClient.send(request, HttpResponse.BodyHandlers.ofFile(Files.createTempFile("countries", "")));
                     locationFile = countries.body().toFile();
+                    contentType = countries.headers().firstValue("Content-Type").orElse(null);
                     LOG.info("Downloaded file: {}", countries.uri());
                 } catch (Exception e) {
                     LOG.error("Error when downloading location file", e);
                     throw new IOException("Error when downloading location file", e);
                 }
             } else if (locationFileUri.getScheme() != null && locationFileUri.getScheme().startsWith("file")) {
+                // Using local file
                 locationFile = new File(locationFileUri);
             } else {
                 throw new IOException("Invalid location file URI: %s".formatted(locationFileUri));
             }
-            if ("application/zip".equals(GalleryFileUtils.getContentType(locationFile))) {
-                //UNZIPPING
+            if (contentType == null) {
+                contentType = GalleryFileUtils.getContentType(locationFile);
+            }
+            if ("application/zip".equals(contentType)) {
+                //Unzip
                 locationFile = unzipAndDeleteZippedFile(locationFile);
             }
 
@@ -82,11 +88,13 @@ public class LocationLoader {
                 Iterator<CSVRecord> iterator = records.iterator();
                 long startTime = System.currentTimeMillis();
                 long counter = 0;
+                long failures = 0;
                 while (true) {
                     try {
                         if (!iterator.hasNext()) {
                             break;
                         }
+                        counter++;
                         CSVRecord record = iterator.next();
                         Integer pk = Integer.parseInt(record.get(CSV_INDEX_ID));
                         String name = record.get(CSV_INDEX_NAME);
@@ -95,7 +103,6 @@ public class LocationLoader {
                         String featureCode = record.get(CSV_INDEX_FEATURE_CODE);
                         String countryIso = record.get(CSV_INDEX_COUNTRY);
                         String point = "POINT(%s %s)".formatted(lon, lat);
-                        counter++;
                         if (counter % 50000 == 0) {
                             LOG.info("Loaded {} locations. Speed {} records/s", counter,
                                     (double) counter / ((System.currentTimeMillis() - startTime) / 1000));
@@ -105,8 +112,10 @@ public class LocationLoader {
 
                     } catch (Exception e) {
                         LOG.error(e.getMessage(), e);
+                        failures++;
                     }
                 }
+                LOG.info("Loaded {} locations in total of which {} were failures", counter, failures);
             });
         } finally {
             if (locationFile != null) {
@@ -127,7 +136,7 @@ public class LocationLoader {
                 throw new IOException("Directories in ZIP file are not supported");
             }
             unzippedFile = Files.createTempFile("gallery", "temp").toFile();
-            System.out.println("Unzipping to " + unzippedFile.getAbsolutePath());
+            LOG.info("Unzipping to {}", unzippedFile.getAbsolutePath());
             FileOutputStream fos = new FileOutputStream(unzippedFile);
             int len;
             while ((len = zis.read(buffer)) > 0) {

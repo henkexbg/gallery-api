@@ -126,5 +126,8 @@ server.servlet.context-path=/gallery
 
 server.error.whitelabel.enabled=false
 
-# Extra logging can be configured here
-#logging.level.root=DEBUG
+###############################################################################
+# LOGGING
+###############################################################################
+logging.file.name=${gallery.baseDir}/log/gallery.log
+#logging.level.com.github.henkexbg.gallery=DEBUG
