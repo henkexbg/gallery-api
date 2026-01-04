@@ -53,11 +53,13 @@ public class DbTableSetup {
                             id IDENTITY PRIMARY KEY,
                             file_id BIGINT,
                             text VARCHAR_IGNORECASE(255) NOT NULL,
+                            type VARCHAR_IGNORECASE(20),
                             source ENUM('FILENAME', 'LOCATION'),
                             FOREIGN KEY (file_id) REFERENCES gallery_file(id) ON DELETE CASCADE
                         )
                         """);
                 handle.execute("CREATE INDEX IF NOT EXISTS tag_index ON tag (text)");
+                handle.execute("CREATE INDEX IF NOT EXISTS tag_type_index ON tag (type)");
             });
         } catch (Exception e) {
             LOG.error("Error when setting up database tables!", e);

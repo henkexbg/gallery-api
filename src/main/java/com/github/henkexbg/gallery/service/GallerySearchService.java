@@ -28,10 +28,17 @@ import java.util.stream.Collectors;
 import static com.github.henkexbg.gallery.util.GalleryFileUtils.*;
 import static org.apache.commons.io.FileUtils.listFilesAndDirs;
 
+/**
+ * Adds search capability as well as indexing. Utilises a database that indexes all relevant files present within the root directories. When
+ * a file is indexed, metadata about the file is extracted from multiple sources such as filename, file metadata and the Location table.
+ */
 @Service
 public class GallerySearchService implements FileChangeListener {
 
     public static final int MAX_PAGE_SIZE = 2000;
+    static final Set<String> LOCATION_CITY_OR_TOWN_FEATURE_CODE =
+            Set.of("ADM1", "ADM2", "ADM3", "ADM4", "ADM5", "PPL", "PPLA", "PPLA2", "PPLA3", "PPLA4", "PPLA5", "PPLC", "PPLF", "PPLH",
+                    "PPLL", "PPLR", "PPLS");
 
     final Logger LOG = LoggerFactory.getLogger(getClass());
     final Map<String, String> ISO_COUNTRY_NAME_MAP;
@@ -120,9 +127,9 @@ public class GallerySearchService implements FileChangeListener {
         if (StringUtils.isNotBlank(publicPath)) {
             basePathSearchTerms.add(galleryAuthorizationService.getRealFileOrDir(publicPath).getCanonicalPath() + "_%");
         } else {
-            galleryAuthorizationService.getRootPathsForCurrentUser().forEach((k, v) -> {
+            galleryAuthorizationService.getRootPathsForCurrentUser().values().forEach(f -> {
                 try {
-                    basePathSearchTerms.add(v.getCanonicalPath() + "_%");
+                    basePathSearchTerms.add(f.getCanonicalPath() + "_%");
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -385,7 +392,7 @@ public class GallerySearchService implements FileChangeListener {
             });
             updateFilenameTags(file, atomicFileId.get());
             if (metadata.gpsLatitude() != null && metadata.gpsLongitude() != null) {
-                List<Location> nearestLocations = getNearestLocations(metadata.gpsLongitude(), metadata.gpsLatitude());
+                List<Location> nearestLocations = getBestNearestLocations(metadata.gpsLongitude(), metadata.gpsLatitude());
                 updateLocationTags(file, atomicFileId.get(), nearestLocations);
             }
         } catch (Exception e) {
@@ -393,16 +400,57 @@ public class GallerySearchService implements FileChangeListener {
         }
     }
 
-    List<Location> getNearestLocations(double lon, double lat) {
-        final List<Double> intervals = List.of(0.1d, 1d, 10d);
-        final String query = """
+    /**
+     * Retrieves a list of nearest locations. The returned locations are deduplicated based on the feature code. Extra effort is put into
+     * identifying the nearest actual city/town/populated place even if it's not among the absolute nearest results. This is to avoid only
+     * getting rivers, hills and other minor locations.
+     *
+     * @param lon Longitude
+     * @param lat Latitude
+     * @return List of locations. Can in theory be empty list
+     */
+    List<Location> getBestNearestLocations(double lon, double lat) {
+        final List<Double> maxDistances = List.of(0.01d, 0.1d, 1d);
+        List<Location> locations = null;
+        for (Double maxDistance : maxDistances) {
+            locations = getNearestLocations(lon, lat, maxDistance, null);
+            if (!locations.isEmpty()) {
+                LOG.debug("Found {} nearest locations for maxDistance {}", locations.size(), maxDistance);
+                break;
+            }
+        }
+        Map<String, List<Location>> featureCodeLocationsMap = locations.stream().collect(Collectors.groupingBy(Location::getFeatureCode));
+        List<Location> result =
+                featureCodeLocationsMap.values().stream().map(List::getFirst).collect(Collectors.toCollection(ArrayList::new));
+        if (featureCodeLocationsMap.keySet().stream().noneMatch(LOCATION_CITY_OR_TOWN_FEATURE_CODE::contains)) {
+            List<Location> nearestCitiesOrTowns = getNearestLocations(lon, lat, maxDistances.getLast(), LOCATION_CITY_OR_TOWN_FEATURE_CODE);
+            LOG.debug("No city or town in initial search. Feature code filtered search returned result: {}",
+                    !nearestCitiesOrTowns.isEmpty());
+            if (!nearestCitiesOrTowns.isEmpty()) {
+                result.add(nearestCitiesOrTowns.getFirst());
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Retrieves a list of nearest locations given a max distance and an optional list of feature codes.
+     *
+     * @param lon              Longitude
+     * @param lat              Latitude
+     * @param maxRadiusDegrees Max radius in degrees. 1 is between 19-111km for latitude and about 111km for longitude
+     * @param featureCodes     Optional. If non-empty, only results with the provided feature codes will be returned
+     * @return List of locations. Can be empty
+     */
+    List<Location> getNearestLocations(double lon, double lat, double maxRadiusDegrees, Collection<String> featureCodes) {
+        final String queryAllFeatureCodes = """
                 WITH candidates AS (
                     SELECT id, the_geom, name, country_iso_a2, feature_code
                     FROM location
                     WHERE the_geom && ST_Envelope(
                         ST_Buffer(
                             ST_GeomFromText(:location, 4326),
-                            :interval
+                            :max_distance
                         )
                     )
                 )
@@ -411,54 +459,71 @@ public class GallerySearchService implements FileChangeListener {
                 ORDER BY ST_Distance(the_geom, ST_GeomFromText(:location, 4326))
                 LIMIT 5;
                 """;
+        final String querySpecificFeatureCodes = """
+                WITH candidates AS (
+                    SELECT id, the_geom, name, country_iso_a2, feature_code
+                    FROM location
+                    WHERE the_geom && ST_Envelope(
+                        ST_Buffer(
+                            ST_GeomFromText(:location, 4326),
+                            :max_distance
+                        )
+                    )
+                    AND feature_code IN (<feature_codes>)
+                )
+                SELECT id, the_geom, name, country_iso_a2, feature_code
+                FROM candidates
+                ORDER BY ST_Distance(the_geom, ST_GeomFromText(:location, 4326))
+                LIMIT 5;
+                """;
         String point = "POINT(%s %s)".formatted(lon, lat);
-        List<Location> locations = null;
-        for (Double interval : intervals) {
-            locations = jdbi.withHandle(handle ->
-                    handle.createQuery(query).bind("location", point).bind("interval", interval).mapTo(Location.class).list()
-            );
-            if (!locations.isEmpty()) {
-                LOG.debug("Found {} nearest locations for interval {}", locations.size(), interval);
-                break;
+        return jdbi.withHandle(handle -> {
+            if (featureCodes == null || featureCodes.isEmpty()) {
+                return handle.createQuery(queryAllFeatureCodes).bind("location", point).bind("max_distance", maxRadiusDegrees)
+                        .mapTo(Location.class).list();
+            } else {
+                return handle.createQuery(querySpecificFeatureCodes).bind("location", point).bind("max_distance", maxRadiusDegrees)
+                        .bindList("feature_codes", featureCodes).mapTo(Location.class).list();
             }
-        }
-        return locations.stream().collect(Collectors.groupingBy(Location::getFeatureCode)).values().stream().map(List::getFirst).toList();
+        });
     }
 
     void updateFilenameTags(File fileOrDir, long fileId) throws IOException {
-        List<String> filenameParts = filenameToSearchTermsStrategy.generateSearchTermsFromFilename(fileOrDir);
+        List<TypeAndText> filenameParts =
+                filenameToSearchTermsStrategy.generateSearchTermsFromFilename(fileOrDir).stream().map(part -> new TypeAndText(null, part))
+                        .toList();
         updateTagsForSource(fileOrDir, fileId, "FILENAME", filenameParts);
     }
 
     void updateLocationTags(File fileOrDir, long fileId, List<Location> locations) throws IOException {
-        Set<String> locationParts = new HashSet<>();
+        Set<TypeAndText> locationParts = new HashSet<>();
         for (Location location : locations) {
             String countryName = ISO_COUNTRY_NAME_MAP.get(location.getCountryIsoA2());
             if (countryName == null) {
                 LOG.warn("ISO code {} is not a valid country. Ignoring", location.getCountryIsoA2());
                 continue;
             }
-            locationParts.add(location.getName());
-            locationParts.add(countryName);
-            locationParts.add(location.getCountryIsoA2());
-            locationParts.add(location.getFeatureCode());
+            locationParts.add(new TypeAndText(location.getFeatureCode(), location.getName()));
+            locationParts.add(new TypeAndText("COUNTRY", countryName));
+            locationParts.add(new TypeAndText("COUNTRY_CODE", location.getCountryIsoA2()));
         }
         updateTagsForSource(fileOrDir, fileId, "LOCATION", locationParts);
     }
 
-    void updateTagsForSource(File fileOrDir, long fileId, String source, Collection<String> newTags) throws IOException {
+    void updateTagsForSource(File fileOrDir, long fileId, String source, Collection<TypeAndText> newTags) throws IOException {
         final String deleteTagsQuery = """
                 DELETE FROM tag WHERE source = :source AND file_id = :file_id
                 """;
         final String updateTagsQuery = """
-                INSERT INTO tag (file_id, source, text) VALUES (:file_id, :source, :text)
+                INSERT INTO tag (file_id, source, type, text) VALUES (:file_id, :source, :type, :text)
                 """;
         try {
             jdbi.useTransaction(handle -> {
                 handle.createUpdate(deleteTagsQuery).bind("file_id", fileId).bind("source", source).execute();
-                for (String newTag : newTags) {
-                    if (StringUtils.isNotBlank(newTag)) {
-                        handle.createUpdate(updateTagsQuery).bind("file_id", fileId).bind("source", source).bind("text", newTag).execute();
+                for (TypeAndText newTag : newTags) {
+                    if (StringUtils.isNotBlank(newTag.text())) {
+                        handle.createUpdate(updateTagsQuery).bind("file_id", fileId).bind("source", source).bind("type", newTag.type())
+                                .bind("text", newTag.text()).execute();
                     }
                 }
             });
@@ -490,6 +555,9 @@ public class GallerySearchService implements FileChangeListener {
     }
 
     record FileAndAction(File file, FileAction fileAction) {
+    }
+
+    record TypeAndText(String type, String text) {
     }
 }
 
