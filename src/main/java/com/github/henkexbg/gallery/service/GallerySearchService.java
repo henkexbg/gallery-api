@@ -159,8 +159,10 @@ public class GallerySearchService implements FileChangeListener {
         }
         sb.append(" ORDER BY f.date_taken DESC");
         // Add pagination
-        int startPage = Math.max(0, searchQuery.startPage());
-        int pageSize = searchQuery.pageSize() <= 0 ? MAX_PAGE_SIZE : searchQuery.pageSize();
+        int startPage = searchQuery.page() != null ? Math.max(0, searchQuery.page()) : 0;
+        int pageSize =
+                searchQuery.pageSize() == null || searchQuery.pageSize() <= 0 || searchQuery.pageSize() > MAX_PAGE_SIZE ? MAX_PAGE_SIZE :
+                        searchQuery.pageSize();
         int offset = Math.max(0, startPage * pageSize);
         sb.append(" LIMIT :limit OFFSET :offset");
 
@@ -546,7 +548,7 @@ public class GallerySearchService implements FileChangeListener {
         return allDirectories;
     }
 
-    public record SearchQuery(String publicPath, String searchTerm, int startPage, int pageSize) {
+    public record SearchQuery(String publicPath, String searchTerm, Integer page, Integer pageSize) {
     }
 
     enum FileAction {
