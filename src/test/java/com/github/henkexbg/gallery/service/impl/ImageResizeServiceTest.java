@@ -18,7 +18,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package com.github.henkexbg.gallery.service;
+package com.github.henkexbg.gallery.service.impl;
 
 import static org.junit.Assert.fail;
 
@@ -28,14 +28,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import com.github.henkexbg.gallery.service.ImageResizeService;
 import org.apache.commons.io.FileUtils;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.github.henkexbg.gallery.service.impl.ImageResizeServiceIMImpl;
-import com.github.henkexbg.gallery.service.impl.ImageResizeServiceImpl;
 
 /**
  * The tests in this class are ignored per default. They work, but require
@@ -48,13 +46,13 @@ public class ImageResizeServiceTest {
 
 	private final Logger LOG = LoggerFactory.getLogger(getClass());
 
-	private String imageMagickPath = "C:/Program Files/ImageMagick-6.9.3-Q16";
+	private String imageMagickPath = "/usr/bin/convert";
 
 	private String[] allowedSuffixes = new String[] { "jpg" };
 
-	private File inputFilesDir = new File("C:/temp/testfiles");
+	private File inputFilesDir = new File("/home/henrik/dev/gallery-test-data/im-test");
 
-	private File outputDir = new File("C:/temp/testfilesoutput/");
+	private File outputDir = new File("/home/henrik/dev/gallery-test-data/im-test/testfilesoutput/");
 
 	private int outputResWidth = 1920;
 
@@ -65,7 +63,7 @@ public class ImageResizeServiceTest {
 	public void testGenerateCompositeImage() throws Exception {
 		Collection<File> fileCollection = (Collection<File>) FileUtils.listFiles(inputFilesDir, allowedSuffixes, false);
 		List<File> fileList = new ArrayList<>(fileCollection);
-		ImageResizeService imageResizeServiceNative = new ImageResizeServiceImpl();
+		ImageResizeService imageResizeServiceNative = new ImageResizeServiceIMImpl();
 		imageResizeServiceNative.generateCompositeImage(fileList,
 				new File(outputDir.toString() + File.separator + "composite" + System.currentTimeMillis() + ".jpg"),
 				outputResWidth, outputResHeight);
@@ -93,7 +91,7 @@ public class ImageResizeServiceTest {
 	@Ignore
 	public void testPerformanceIM() {
 		ImageResizeService imageResizeServiceIM = new ImageResizeServiceIMImpl();
-		((ImageResizeServiceIMImpl) imageResizeServiceIM).setImageMagickPath(imageMagickPath);
+		//((ImageResizeServiceIMImpl) imageResizeServiceIM).setImageMagickPath(imageMagickPath);
 		testPerformance(imageResizeServiceIM);
 	}
 

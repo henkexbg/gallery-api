@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.henkexbg.gallery.service.ImageResizeService;
+import org.springframework.beans.factory.annotation.Value;
 
 /**
  * {@link ImageResizeService} using ImageMagick via IM4J wrapper. If this
@@ -45,13 +46,12 @@ public class ImageResizeServiceIMImpl implements ImageResizeService {
 
     private final Logger LOG = LoggerFactory.getLogger(getClass());
 
+    @Value("${gallery.imageMagickPath}")
     private String imageMagickPath;
 
-    public void setImageMagickPath(String imageMagickPath) {
+    void setImageMagickPath(String imageMagickPath) {
         this.imageMagickPath = imageMagickPath;
     }
-
-    private String backgroundColor = "black";
 
     @Override
     public void resizeImage(File origImage, File newImage, int width, int height) throws IOException {
@@ -65,11 +65,7 @@ public class ImageResizeServiceIMImpl implements ImageResizeService {
         IMOperation op = new IMOperation();
         op.addImage(origImage.toString());
         op.resize(width, height);
-        op.gravity("center");
-        op.background(backgroundColor);
-        op.extent(width, height);
-        // op.density(96, 96);
-        op.quality(70d);
+        op.quality(80d);
         op.addImage(newImage.toString());
 
         // execute the operation
