@@ -31,6 +31,8 @@ import static org.apache.commons.io.FileUtils.listFilesAndDirs;
 /**
  * Adds search capability as well as indexing. Utilises a database that indexes all relevant files present within the root directories. When
  * a file is indexed, metadata about the file is extracted from multiple sources such as filename, file metadata and the Location table.
+ * <p>
+ * This class assumes that the database is structured in a certain way and assumes features codes as per Geonames.
  */
 @Service
 public class GallerySearchService implements FileChangeListener {
@@ -121,15 +123,23 @@ public class GallerySearchService implements FileChangeListener {
         }
     }
 
+    /**
+     * Perform the search for media and directories given a search query.
+     *
+     * @param searchQuery Search query
+     * @return A search result
+     * @throws IOException         If there's an error getting a result
+     * @throws NotAllowedException If the user does not have access to the path for which they are performing the search
+     */
     public SearchResult search(SearchQuery searchQuery) throws IOException, NotAllowedException {
         String publicPath = searchQuery.publicPath();
         List<String> basePathSearchTerms = new ArrayList<>();
         if (StringUtils.isNotBlank(publicPath)) {
-            basePathSearchTerms.add(galleryAuthorizationService.getRealFileOrDir(publicPath).getCanonicalPath() + "_%");
+            basePathSearchTerms.add(galleryAuthorizationService.getRealFileOrDir(publicPath).getCanonicalPath() + "/_%");
         } else {
             galleryAuthorizationService.getRootPathsForCurrentUser().values().forEach(f -> {
                 try {
-                    basePathSearchTerms.add(f.getCanonicalPath() + "_%");
+                    basePathSearchTerms.add(f.getCanonicalPath() + "/_%");
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -200,8 +210,11 @@ public class GallerySearchService implements FileChangeListener {
      * Goes through all directories and files under all root paths configured, and triggers a DB update for each. The DB will not update
      * records that haven't changed according to modification time.
      */
-    public void createOrUpdateAllDirectories() {
+    public void createOrUpdateAllDirectories(boolean removeAll) {
         try {
+            if (removeAll) {
+                deleteAllFilesAndDirectories();
+            }
             Collection<File> rootDirectories = getRootDirectoriesForCurrentUser();
             Collection<File> allDirectoriesCol = getAllDirectories(rootDirectories);
             List<File> allDirectoriesSorted =
@@ -351,6 +364,21 @@ public class GallerySearchService implements FileChangeListener {
             String filePath = file.getCanonicalPath();
             int nrDeleted = handle.createUpdate(deleteGalleryFileQuery).bind("path_on_disk", filePath).execute();
             LOG.debug("Deleting {} resulted in {} rows removed in DB", filePath, nrDeleted);
+        });
+    }
+
+    /**
+     * Deletes ALL media and directories from the DB.
+     *
+     * @throws IOException If an error occurs during deletion
+     */
+    void deleteAllFilesAndDirectories() throws IOException {
+        final String deleteGalleryFileQuery = """
+                DELETE FROM PUBLIC.gallery_file WHERE 1 = 1
+                """;
+        jdbi.useHandle(handle -> {
+            int nrDeleted = handle.createUpdate(deleteGalleryFileQuery).execute();
+            LOG.debug("Deleting all files and directories resulted in {} rows removed in DB", nrDeleted);
         });
     }
 

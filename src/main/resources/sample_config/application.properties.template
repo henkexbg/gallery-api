@@ -24,9 +24,17 @@ gallery.videoConversion.binary=/full/path/to/ffmpeg/bin/ffmpeg
 # Points to the exiftool binary, which is used to extract metadata from media
 gallery.metadata.exiftoolPath=/full/path/to/exiftool
 
+# This is only needed if ImageResizeServiceIMImpl is used for resizing (see gallery.resizing.method below), AND the
+# convert command is not on PATH. This property should then contain the directory - the binary name will be added to it.
+#gallery.imageMagickPath=/usr/bin
+
 ###############################################################################
 # OPTIONAL CONFIG WITH DEFAULTS
 ###############################################################################
+# Can be either:
+# 1: IM - for ImageMagick, or
+# 2: NATIVE for a native Java resizing implementation.
+gallery.resizing.method=IM
 
 # H2 database location. This will be automatically created on first run
 gallery.h2.connectionString=jdbc:h2:${gallery.baseDir}/h2/h2;DB_CLOSE_DELAY=-1
@@ -71,17 +79,14 @@ gallery.image-formats[3].code=thumb
 gallery.image-formats[3].width=300
 gallery.image-formats[3].height=300
 
-# A map of video conversion modes, where the last part of the property name
-# denotes the name of the conversion mode itself. Multiple modes can be listed.
-# The value is a template for the external execution of the video format.
+# A map of video conversion modes, where the last part of the property name denotes the name of the conversion mode
+# itself. Multiple modes can be listed. The value is a template for the external execution of the video format.
 # Three parameters will be provided as substitution:
 # String 1 will be the executable.
 # String 2 will be the input file.
-# String 3 will be the output file. 
-#This property has been tested successfully with ffmpeg
+# String 3 will be the output file.
+# This property has been tested successfully with ffmpeg
 gallery.video.conversion-modes.COMPACT=%s,-v,quiet,-i,%s,%s
-# The below config has been tested successfully with avconv
-#gallery.video.conversion-modes.COMPACT=%s,-i,%s,-strict,experimental,%s
 
 # Template for the external execution of generating a screenshot from a video.
 # String 1 will be the executable.
@@ -106,9 +111,6 @@ gallery.imageResizing.maxImageHeight=5000
 # Max age of generated directory images before re-validation towards potential
 # new images in directory
 gallery.imageResizing.directoryImageMaxAgeMinutes=1440
-
-# This is only needed if ImageResizeServiceIMImpl is used for resizing
-#gallery.imageMagickPath=C:/Program Files/ImageMagick-6.9.3-Q16
 
 # Sets the cache header for images and videos. All service requests returning
 # JSON are non-cached.

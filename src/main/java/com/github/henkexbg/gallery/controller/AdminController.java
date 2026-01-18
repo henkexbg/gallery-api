@@ -30,13 +30,13 @@ public class AdminController {
     private LocationLoader locationLoader;
 
     @PostMapping("/db/full")
-    public void updateDatabase() throws Exception {
+    public void updateDatabase(@RequestParam(required = false, defaultValue = "false") Boolean removeAll) throws Exception {
         if (!galleryAuthorizationService.isAdmin()) {
             throw new NotAllowedException("Not allowed");
         }
         LOG.info("Performing full DB refresh");
         try {
-            gallerySearchService.createOrUpdateAllDirectories();
+            gallerySearchService.createOrUpdateAllDirectories(removeAll);
         } catch (Exception e) {
             LOG.error("Exception while performing full DB refresh", e);
         }
