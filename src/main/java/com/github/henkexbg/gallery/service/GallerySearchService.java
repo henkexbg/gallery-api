@@ -32,7 +32,7 @@ import static org.apache.commons.io.FileUtils.listFilesAndDirs;
  * Adds search capability as well as indexing. Utilises a database that indexes all relevant files present within the root directories. When
  * a file is indexed, metadata about the file is extracted from multiple sources such as filename, file metadata and the Location table.
  * <p>
- * This class assumes that the database is structured in a certain way and assumes features codes as per Geonames.
+ * This class assumes that the database is structured in a certain way and assumes features codes as per GeoNames.
  */
 @Service
 public class GallerySearchService implements FileChangeListener {

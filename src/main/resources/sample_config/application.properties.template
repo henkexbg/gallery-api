@@ -116,7 +116,7 @@ gallery.imageResizing.directoryImageMaxAgeMinutes=1440
 # JSON are non-cached.
 gallery.mediaResourcesCacheHeader=private, max-age=31536000
 
-# URI linking to the Geonames file containing location data for the whole world.
+# URI linking to the GeoNames file containing location data for the whole world.
 # Can be a URL or a local file if prefixed with file://
 gallery.location.source.default.uri=https://download.geonames.org/export/dump/allCountries.zip
 

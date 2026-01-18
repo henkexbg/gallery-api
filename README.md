@@ -10,13 +10,15 @@ There was also a clear intent with separation of concern in excluding any UI fro
 There is a separate project called Jarea Gallery that adds a React UI on top of the REST webapp, see https://github.com/henkexbg/jarea-gallery. That repository also contains build scripts for bundling the REST application with the UI into one deployable application.
 
 # Features
-- REST API for browsing directories
-- Serves scaled images and transcoded videos
-- Requires authentication and validates that every single request is authenticated and authorized to view the requested content
+- REST API for browsing and searching media
+- Metadata from the file is extracted and made searchable in a built-in DB. This includes places close to the location of where the media was captured
+- Requires authentication and validates all access
+- Authentication is handled either by basic auth OR by session. In the later case the user must login via the login endpoint and then pass the session cookies with each request
 - Automatically serves newly added content
+- Serves scaled images and transcoded videos
 - Images are scaled ad-hoc
-- Transcoded videos are generated via a job or ad-hoc
-- A video blacklist exists to ensure videos that fail to transcode keep hogging resources forever
+- Transcoded videos are periodically or ad-hoc
+- A video blacklist exists to ensure videos that fail to transcode don't keep hogging resources forever
 - Users are configured server-side. There is no registration
 
 # How It Works
@@ -24,9 +26,9 @@ The application works by configuring:
 - Users, along with their passwords and roles
 - Directories that a certain role should have access to
 - For video transcoding, the external binary needs to be specified (such as ffmpeg)
-- Images are resized in Java code per default, and does not need an external binary. For those who wish, an implementation that uses ImageMagick also exists
+- Images are resized in ImageMagick by default. There is also a native resize method that does not require ImageMagick
 
-The directories and sub-directories will then be made available by directly accessing the URL for that directory. The URL may differ between users as it depends on the role configuration, see below.
+The directories and subdirectories will then be made available by directly accessing the URL for that directory. The URL may differ between users as it depends on the role configuration, see below.
 
 The exact configuration will be given further down along with JSON responses, but a high level example of the app functionality follows:
 
@@ -56,6 +58,7 @@ All images that have been resized and videos that have been transcoded are store
 - ffmpeg - for video transpilation
 - exiftool - for extracting metadata from images
 - Maven (if building the webapp from source). Not required during runtime
+- ImageMagick is required if the ImageMagick resizing method is chosen
 
 # Maven Artifact ID
 - Group: com.github.henkexbg
@@ -90,6 +93,7 @@ Template configuration: https://github.com/henkexbg/gallery-api/blob/master/src/
 
 ## gallery-users.properties
 Contains the credentials of the users. The format within this property file should be standard Spring Security format.
+Any role can be used, the only one that is special is `ROLE_ADMIN`. This role allows the user to perform restricted actions.
 
 Template configuration: https://github.com/henkexbg/gallery-api/blob/master/src/main/resources/sample_config/gallery-users.properties.template
 
@@ -101,6 +105,9 @@ This file defines the authorization mapping between user groups and directories.
 # Optional Configuration
 A strong recommendation would be to use SSL, either via a fronting web server such as HTTPD or by other means, especially since HTTP basic auth is used, but the setup of that is outside the scope of this webapp.
 
+# Optional Serving of UI Files
+This application is pre-configured to allow the serving of unprotected UI files. These can be placed in a directory defined by `spring.web.resources.static-locations` in application.properties, which by default is `public` in the same directory that the jar file is placed.
+
 # Run
 
 The program can be run by calling
@@ -110,11 +117,23 @@ java -jar gallery-api.jar
 ````
 There are multiple ways to run this as a background process, all of which depend on the operating system used. Google is your friend :) .
 
+# Authenticate
+Authentication is performed **either** by using normal basic auth headers, **or** by calling the login endpoint:
+`POST https://HOST:PORT/gallery/login` with content-type: `application/x-www-form-urlencoded` and `username` and `password` parameters set.
+
+The user will then need to pass the session cookies on subsequent requests.
+
+# Load the DB with location data
+The location data in the database is initially empty. While customizable, the simplest way to populate it is to call:
+* `POST https://HOST:PORT/gallery/admin/db/locations` with an admin user.
+
+This call will download the full CSV from GeoNames, parse it and load the relevant fields into the database. It will take a while as it's around 13 million rows.
+
 # Sample JSON Request/Response
 
 ## Request
 
-https://HOST:PORT/gallery/service/sample
+`GET https://HOST:PORT/gallery/service/sample`
 
 The /gallery part is the name of the web application which may differ depending on how app is deployed
 The /service part is the path there all REST requests are directed.
@@ -192,3 +211,7 @@ The response will contains all information of what the sample directory contains
 }
 
 ````
+
+# Acknowledgements
+GeoNames (https://download.geonames.org/) is implicitly used. While not distributed with this software, it does download and use data from GeoNames.
+The license is Creative Commons Attribution 4.0: https://creativecommons.org/licenses/by/4.0/. 

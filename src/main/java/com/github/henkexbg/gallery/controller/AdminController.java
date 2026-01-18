@@ -49,7 +49,7 @@ public class AdminController {
         }
         LOG.info("Loading locations");
         try {
-            locationLoader.loadDataFromGeonames(fileUri);
+            locationLoader.loadDataFromGeoNames(fileUri);
         } catch (Exception e) {
             LOG.error("Exception while performing full DB refresh", e);
             throw e;

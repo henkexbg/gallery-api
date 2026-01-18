@@ -41,7 +41,7 @@ public class LocationLoader {
     @Value("${gallery.location.source.default.uri}")
     URI sourceDefaultUri;
 
-    public void loadDataFromGeonames(URI locationFileUri) throws IOException {
+    public void loadDataFromGeoNames(URI locationFileUri) throws IOException {
         File locationFile = null;
         try {
             String contentType = null;
