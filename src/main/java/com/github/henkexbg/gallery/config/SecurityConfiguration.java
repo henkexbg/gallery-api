@@ -13,6 +13,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -96,7 +97,8 @@ public class SecurityConfiguration {
     @Priority(5)
     public SecurityFilterChain sessionUserFilterChain(HttpSecurity http) throws Exception {
         return commonSecuredFilterChain(http, "/user", "/login", "/logout").formLogin(
-                formLogin -> formLogin.loginPage("/login").permitAll().successHandler(customSuccessHandler())).build();
+                        formLogin -> formLogin.loginPage("/login").permitAll().successHandler(customSuccessHandler()))
+                .logout((logout) -> logout.logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler())).build();
     }
 
     /**
