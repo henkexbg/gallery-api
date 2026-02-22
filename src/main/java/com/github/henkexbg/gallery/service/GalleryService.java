@@ -166,47 +166,6 @@ public class GalleryService {
         return createGalleryFile(publicPath, convertedVideo);
     }
 
-    /**
-     * Looks up the actual file based on the public path. This method also checks that the current user has right to access the file.
-     *
-     * @param publicPath Public path
-     * @return The corresponding file, if existing and user is allowed to access
-     * @throws IOException           If any file operation fails
-     * @throws FileNotFoundException If file cannot be found
-     * @throws NotAllowedException   If explicitly not allowed to access file
-     */
-    public File getRealFileOrDir(String publicPath) throws IOException, FileNotFoundException, NotAllowedException {
-        LOG.debug("Entering getRealFileOrDir(publicPath={})", publicPath);
-        File file = galleryAuthorizationService.getRealFileOrDir(publicPath);
-        if (!file.exists()) {
-            throw new FileNotFoundException("File not found!");
-        }
-        if (!file.isDirectory() && !isAllowedExtension(file)) {
-            throw new NotAllowedException("File " + publicPath + " did not have an allowed file extension");
-        }
-        return file;
-    }
-
-    /**
-     * A kind of inverse lookup - finding the public path given the actual file.
-     * <strong>NOTE! This method does NOT verify that the current user actually has
-     * the right to access the given publicRoot! It is the responsibility of calling
-     * methods to make sure only allowed root paths are used.</strong>
-     *
-     * @param publicRoot Public root dir
-     * @param file       Actual file
-     * @return The public path of the given file for the given publicRoot.
-     * @throws IOException           If any file operation fails
-     */
-    private String getPublicPathFromRealFile(String publicRoot, File file) throws IOException {
-        String actualFilePath = file.getCanonicalPath();
-        File rootFile = galleryAuthorizationService.getRootPathsForCurrentUser().get(publicRoot);
-        String relativePath = actualFilePath.substring(rootFile.getCanonicalPath().length());
-        String publicPath = separatorsToUnix(publicRoot + relativePath);
-        LOG.debug("Actual file: {}, generated public path: {}", file, publicPath);
-        return publicPath;
-    }
-
     public String getPublicPathFromRealFile(File file) throws IOException, NotAllowedException {
         Map<String, File> rootPathsForCurrentUser = galleryAuthorizationService.getRootPathsForCurrentUser();
         Optional<Entry<String, File>> optRootEntry = rootPathsForCurrentUser.entrySet().stream().filter(e -> {
@@ -271,6 +230,43 @@ public class GalleryService {
         return createGalleryDirectory(publicPath, actualDir, dirName);
     }
 
+    /**
+     * Looks up the actual file based on the public path. This method also checks that the current user has right to access the file.
+     *
+     * @param publicPath Public path
+     * @return The corresponding file, if existing and user is allowed to access
+     * @throws IOException           If any file operation fails
+     * @throws FileNotFoundException If file cannot be found
+     * @throws NotAllowedException   If explicitly not allowed to access file
+     */
+    File getRealFileOrDir(String publicPath) throws IOException, FileNotFoundException, NotAllowedException {
+        File file = galleryAuthorizationService.getRealFileOrDir(publicPath);
+        if (!file.exists()) {
+            throw new FileNotFoundException("File not found!");
+        }
+        if (!file.isDirectory() && !isAllowedExtension(file)) {
+            throw new NotAllowedException("File " + publicPath + " did not have an allowed file extension");
+        }
+        return file;
+    }
+
+    /**
+     * A kind of inverse lookup - finding the public path given the actual file.
+     * <strong>NOTE! This method does NOT verify that the current user actually has
+     * the right to access the given publicRoot! It is the responsibility of calling
+     * methods to make sure only allowed root paths are used.</strong>
+     *
+     * @param publicRoot Public root dir
+     * @param file       Actual file
+     * @return The public path of the given file for the given publicRoot.
+     * @throws IOException           If any file operation fails
+     */
+    String getPublicPathFromRealFile(String publicRoot, File file) throws IOException {
+        String actualFilePath = file.getCanonicalPath();
+        File rootFile = galleryAuthorizationService.getRootPathsForCurrentUser().get(publicRoot);
+        String relativePath = actualFilePath.substring(rootFile.getCanonicalPath().length());
+        return  separatorsToUnix(publicRoot + relativePath);
+    }
 
     /**
      * Creates a {@link GalleryDirectory} given the public path and the actual
@@ -282,7 +278,7 @@ public class GalleryService {
      * @param dirName    Name of gallery directory to be created
      * @return A {@link GalleryDirectory} for the given parameters
      */
-    private GalleryDirectory createGalleryDirectory(String publicPath, File actualDir, String dirName) {
+    GalleryDirectory createGalleryDirectory(String publicPath, File actualDir, String dirName) {
         GalleryDirectory galleryDirectory = new GalleryDirectory();
         galleryDirectory.setPublicPath(publicPath);
         galleryDirectory.setName(dirName);
@@ -307,7 +303,7 @@ public class GalleryService {
      * example because there are no images in the directory.
      * @throws IOException           If any file operation fails
      */
-    private File getDirectoryImage(File directory) throws IOException {
+    File getDirectoryImage(File directory) throws IOException {
         File directoryImage = determineDirectoryImage(directory);
         if (!directoryImage.exists() ||
                 directoryImage.lastModified() < System.currentTimeMillis() - (directoryImageMaxAgeMinutes * 60000)) {
@@ -315,8 +311,8 @@ public class GalleryService {
             List<File> imagesForCompositeDirectoryImage = findImagesForCompositeDirectoryImage(directory);
             if (!imagesForCompositeDirectoryImage.isEmpty()) {
                 long newestSourceImageTimestamp =
-                        imagesForCompositeDirectoryImage.stream().sorted((a, b) -> Long.compare(b.lastModified(), a.lastModified()))
-                                .findFirst().get().lastModified();
+                        imagesForCompositeDirectoryImage.stream().min((a, b) -> Long.compare(b.lastModified(), a.lastModified())).get()
+                                .lastModified();
                 if (directoryImage.exists() && newestSourceImageTimestamp < directoryImage.lastModified()) {
                     // Extra optimization. If the directory image has expired, but the composite images are not newer than the current
                     // directory image, just update the last modified timestamp on the directory image
@@ -354,7 +350,7 @@ public class GalleryService {
      * @return A list with files pointing to images of approved file content types.
      * May return empty list if none found
      */
-    private List<File> findImagesForCompositeDirectoryImage(File directory) {
+    List<File> findImagesForCompositeDirectoryImage(File directory) {
         final int nrImages = 4;
         List<File> foundFiles =
                 listFiles(directory, fileFilter, null).stream().filter(f -> !isVideo(f)).collect(Collectors.toList());
@@ -383,7 +379,7 @@ public class GalleryService {
      * @return A file with the generated filename
      * @throws IOException If filename cannot be generated
      */
-    private File determineResizedImageFilename(File originalFile, int width, int height) throws IOException {
+    File determineResizedImageFilename(File originalFile, int width, int height) throws IOException {
         String resizePart = Integer.valueOf(width).toString() + "x" + Integer.valueOf(height).toString();
         return new File(resizeDir, File.separator + resizePart + File.separator + escapeFilePath(originalFile) +
                 (originalFile.isDirectory() ? '.' + DEFAULT_IMAGE_FILE_ENDING : ""));
@@ -400,7 +396,7 @@ public class GalleryService {
      * @return A {@link File} object for the scaled image.
      * @throws IOException If filename cannot be determined
      */
-    private File determineResizedVideoImage(File originalFile, int width, int height) throws IOException {
+    File determineResizedVideoImage(File originalFile, int width, int height) throws IOException {
         File resizedImage = determineResizedImageFilename(originalFile, width, height);
         return new File(resizedImage.getCanonicalPath() + '.' + DEFAULT_IMAGE_FILE_ENDING);
     }
@@ -413,7 +409,7 @@ public class GalleryService {
      * @return A file pointing to the directory image.
      * @throws IOException If filename cannot be determined
      */
-    private File determineDirectoryImage(File directory) throws IOException {
+    File determineDirectoryImage(File directory) throws IOException {
         String filename = directory.getName() + '-' + directory.getCanonicalPath().hashCode() + '.' + DEFAULT_IMAGE_FILE_ENDING;
         return new File(dirImageDir, filename);
     }
@@ -423,7 +419,7 @@ public class GalleryService {
      * directory images that are generated by this class, that should not be part of
      * normal file listing.
      */
-    private class CaseInsensitiveFileEndingFilter implements IOFileFilter {
+    class CaseInsensitiveFileEndingFilter implements IOFileFilter {
 
         @Override
         public boolean accept(File file) {

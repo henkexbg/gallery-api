@@ -2,6 +2,7 @@ package com.github.henkexbg.gallery.service;
 
 import com.github.henkexbg.gallery.bean.*;
 import com.github.henkexbg.gallery.job.listener.FileChangeListener;
+import com.github.henkexbg.gallery.job.listener.GalleryRootDirChangeListener;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 import com.github.henkexbg.gallery.strategy.FilenameToSearchTermsStrategy;
 import com.github.henkexbg.gallery.util.GalleryFileUtils;
@@ -35,7 +36,7 @@ import static org.apache.commons.io.FileUtils.listFilesAndDirs;
  * This class assumes that the database is structured in a certain way and assumes features codes as per GeoNames.
  */
 @Service
-public class GallerySearchService implements FileChangeListener {
+public class GallerySearchService implements FileChangeListener, GalleryRootDirChangeListener {
 
     public static final int MAX_PAGE_SIZE = 2000;
     static final Set<String> LOCATION_CITY_OR_TOWN_FEATURE_CODE =
@@ -94,7 +95,7 @@ public class GallerySearchService implements FileChangeListener {
                     File file = fileAndAction.file();
                     if (fileAndAction.fileAction() == FileAction.UPDATE) {
                         if (file.isDirectory()) {
-                            createOrUpdateOneDirectory(file, rootDirectories);
+                            upsertOneDirectory(file, rootDirectories);
                         } else {
                             createOrUpdateOneFile(file);
                         }
@@ -132,6 +133,7 @@ public class GallerySearchService implements FileChangeListener {
      * @throws NotAllowedException If the user does not have access to the path for which they are performing the search
      */
     public SearchResult search(SearchQuery searchQuery) throws IOException, NotAllowedException {
+        long startTime = System.currentTimeMillis();
         String publicPath = searchQuery.publicPath();
         List<String> basePathSearchTerms = new ArrayList<>();
         if (StringUtils.isNotBlank(publicPath)) {
@@ -146,64 +148,27 @@ public class GallerySearchService implements FileChangeListener {
             });
         }
         String searchTerm = searchQuery.searchTerm();
-        LOG.debug("Performing search with publicPath={}, basePaths={} searchTerm={}", publicPath, basePathSearchTerms, searchTerm);
-
         List<String> searchTerms = searchTerm != null ?
                 Arrays.stream(searchTerm.split("\\s")).map(String::trim).map(String::toLowerCase).map(s -> s + "%").toList() :
                 Collections.emptyList();
+        LOG.debug("Performing search with publicPath={}, basePaths={} searchTerm={}", publicPath, basePathSearchTerms, searchTerm);
 
-        // Not pretty but we need to build a prepared statement with a dynamic number of paths and search terms
-        StringBuilder sb = new StringBuilder("SELECT * FROM GALLERY_FILE f WHERE (");
-        for (int i = 0; i < basePathSearchTerms.size(); i++) {
-            if (i > 0) sb.append(" OR ");
-            sb.append("f.PATH_ON_DISK LIKE :path%s".formatted(i));
-        }
-        sb.append(")");
-        if (!searchTerms.isEmpty()) {
-            sb.append(" AND f.ID IN (SELECT DISTINCT t.FILE_ID FROM TAG t WHERE ");
-            for (int i = 0; i < searchTerms.size(); i++) {
-                if (i > 0) sb.append(" OR ");
-                sb.append("t.TEXT LIKE :term%s".formatted(i));
-            }
-            sb.append(")");
-        }
-        sb.append(" ORDER BY f.date_taken DESC");
-        // Add pagination
-        int startPage = searchQuery.page() != null ? Math.max(0, searchQuery.page()) : 0;
-        int pageSize =
-                searchQuery.pageSize() == null || searchQuery.pageSize() <= 0 || searchQuery.pageSize() > MAX_PAGE_SIZE ? MAX_PAGE_SIZE :
-                        searchQuery.pageSize();
-        int offset = Math.max(0, startPage * pageSize);
-        sb.append(" LIMIT :limit OFFSET :offset");
-
-        String fullQuery = sb.toString();
-        List<DbFile> list;
-        long startQueryTime = System.currentTimeMillis();
         try {
-            list = jdbi.withHandle(handle -> {
-                Query query = handle.createQuery(fullQuery);
-                for (int i = 0; i < basePathSearchTerms.size(); i++) {
-                    query.bind("path%s".formatted(i), basePathSearchTerms.get(i));
-                }
-                for (int i = 0; i < searchTerms.size(); i++) {
-                    query.bind("term%s".formatted(i), searchTerms.get(i));
-                }
-                query.bind("limit", pageSize);
-                query.bind("offset", offset);
-                return query.mapTo(DbFile.class).stream().toList();
-            });
+            List<DbFile> dbDirectories = findDirectoriesForQuery(searchTerms, basePathSearchTerms);
+            Set<Long> directoryIds = dbDirectories.stream().map(DbFile::getId).collect(Collectors.toSet());
+            List<DbFile> dbMedia =
+                    findMediaForQuery(searchTerms, basePathSearchTerms, directoryIds, searchQuery.page(), searchQuery.pageSize());
+
+            List<GalleryFile> galleryFiles = dbMedia.stream().map(this::createGalleryFileFromDbFile).filter(Objects::nonNull).toList();
+            List<GalleryDirectory> galleryDirectories =
+                    dbDirectories.stream().map(this::createGalleryDirectoryFromDbFile).filter(Objects::nonNull).toList();
+            LOG.debug("Returning {} directories and {} gallery files in {}ms", galleryDirectories.size(), galleryFiles.size(),
+                    System.currentTimeMillis() - startTime);
+            return new SearchResult(galleryDirectories, galleryFiles);
         } catch (Exception e) {
             LOG.error("Error when performing database search", e);
             throw new IOException(e);
         }
-        LOG.debug("Performing database search took {}ms (page={}, pageSize={}, offset={})", System.currentTimeMillis() - startQueryTime,
-                startPage, pageSize, offset);
-        List<GalleryFile> galleryFiles =
-                list.stream().filter(df -> !df.getIsDirectory()).map(this::createGalleryFileFromDbFile).filter(Objects::nonNull).toList();
-        List<GalleryDirectory> galleryDirectories =
-                list.stream().filter(DbFile::getIsDirectory).map(this::createGalleryDirectoryFromDbFile).filter(Objects::nonNull).toList();
-        LOG.debug("Returning {} directories and {} gallery files", galleryDirectories.size(), galleryFiles.size());
-        return new SearchResult(galleryDirectories, galleryFiles);
     }
 
     /**
@@ -221,7 +186,7 @@ public class GallerySearchService implements FileChangeListener {
                     allDirectoriesCol.stream().sorted(Comparator.comparingInt(f -> getPathName(f).length())).toList();
             for (File oneDirectory : allDirectoriesSorted) {
                 try {
-                    createOrUpdateOneDirectory(oneDirectory, rootDirectories);
+                    upsertOneDirectory(oneDirectory, rootDirectories);
                 } catch (IOException e) {
                     LOG.error("Error while creating or updating directory {} in database", oneDirectory, e);
                 }
@@ -271,6 +236,134 @@ public class GallerySearchService implements FileChangeListener {
                 .forEach(f -> updatedFilesQueue.add(new FileAndAction(f, FileAction.UPDATE)));
     }
 
+    /**
+     * Upserts root directories when configuration has changed. This method is also called every time the application is started, so that
+     * root directories are always maintained even if they haven't changed.
+     * <p>
+     * An edge case that requires handling is that there may actually be a root directory for one role that is within the root directory of
+     * another role. For DB purposes we will add only the highest level root directory in that case.
+     */
+    @Override
+    public void onGalleryRootDirsUpdated(Collection<GalleryRootDir> galleryRootDirs) {
+        List<File> sortedDirs = galleryRootDirs.stream().map(GalleryRootDir::getDir).sorted(Comparator.comparing(f -> {
+            try {
+                return f.getCanonicalPath().length();
+            } catch (IOException e) {
+                throw new RuntimeException("Could not get path length for %s".formatted(f));
+            }
+        })).toList();
+        try {
+            List<File> filteredDirs = new ArrayList<>();
+            for (File dir : sortedDirs) {
+                boolean skip = false;
+                for (File addedDir : filteredDirs) {
+                    if ((dir.getParentFile().getCanonicalPath() + File.pathSeparator).startsWith(addedDir.getCanonicalPath())) {
+                        skip = true;
+                        break;
+                    }
+                }
+                if (!skip) {
+                    filteredDirs.add(dir);
+                }
+
+            }
+            for (File galleryRootDir : filteredDirs) {
+                upsertOneDirectory(galleryRootDir, filteredDirs);
+            }
+        } catch (IOException ioe) {
+            LOG.error("Error updating root directories for search indexing", ioe);
+        }
+    }
+
+    List<DbFile> findDirectoriesForQuery(List<String> searchTerms, List<String> basePathSearchTerms) {
+        // Not pretty but we need to build a prepared statement with a dynamic number of paths and search terms
+        StringBuilder sb = new StringBuilder("SELECT * FROM GALLERY_FILE f WHERE f.is_directory = TRUE AND (");
+        for (int i = 0; i < basePathSearchTerms.size(); i++) {
+            if (i > 0) sb.append(" OR ");
+            sb.append("f.PATH_ON_DISK LIKE :path%s".formatted(i));
+        }
+        sb.append(")");
+        if (!searchTerms.isEmpty()) {
+            sb.append(" AND f.ID IN (SELECT DISTINCT t.FILE_ID FROM TAG t WHERE ");
+            for (int i = 0; i < searchTerms.size(); i++) {
+                if (i > 0) sb.append(" OR ");
+                sb.append("t.TEXT LIKE :term%s".formatted(i));
+            }
+            sb.append(")");
+        }
+        sb.append("ORDER BY f.id ASC");
+        return jdbi.withHandle(handle -> {
+            Query query = handle.createQuery(sb.toString());
+            for (int i = 0; i < basePathSearchTerms.size(); i++) {
+                query.bind("path%s".formatted(i), basePathSearchTerms.get(i));
+            }
+            for (int i = 0; i < searchTerms.size(); i++) {
+                query.bind("term%s".formatted(i), searchTerms.get(i));
+            }
+            return query.mapTo(DbFile.class).stream().toList();
+        });
+    }
+
+    List<DbFile> findMediaForQuery(List<String> searchTerms, List<String> basePathSearchTerms, Collection<Long> directoryIds, Integer page,
+                                   Integer givenPageSize) {
+        // Not pretty but we need to build a prepared statement with a dynamic number of paths and search terms
+        StringBuilder sb = new StringBuilder("SELECT * FROM GALLERY_FILE f WHERE f.is_directory = FALSE AND (");
+        for (int i = 0; i < basePathSearchTerms.size(); i++) {
+            if (i > 0) sb.append(" OR ");
+            sb.append("f.PATH_ON_DISK LIKE :path%s".formatted(i));
+        }
+        sb.append(")");
+        List<String> orQueries = new ArrayList<>();
+
+        if (!searchTerms.isEmpty()) {
+            StringBuilder tagsQueryBuilder = new StringBuilder();
+            tagsQueryBuilder.append("(f.ID IN (SELECT DISTINCT t.FILE_ID FROM TAG t WHERE ");
+            for (int i = 0; i < searchTerms.size(); i++) {
+                if (i > 0) tagsQueryBuilder.append(" OR ");
+                tagsQueryBuilder.append("t.TEXT LIKE :term%s".formatted(i));
+            }
+            tagsQueryBuilder.append("))");
+            orQueries.add(tagsQueryBuilder.toString());
+        }
+        if (!directoryIds.isEmpty()) {
+            orQueries.add("(f.PARENT_ID IN (<directoryIds>))");
+        }
+        if (!orQueries.isEmpty()) {
+            sb.append(" AND (");
+            sb.append(String.join(") OR (", orQueries));
+            sb.append(")");
+        }
+        // Add pagination only for the media query
+        int startPage = page != null ? Math.max(0, page) : 0;
+        int pageSize =
+                givenPageSize == null || givenPageSize <= 0 || givenPageSize > MAX_PAGE_SIZE ?
+                        MAX_PAGE_SIZE :
+                        givenPageSize;
+        int offset = Math.max(0, startPage * pageSize);
+        sb.append(" LIMIT :limit OFFSET :offset");
+        List<DbFile> mediaFiles = jdbi.withHandle(handle -> {
+            Query query = handle.createQuery(sb.toString());
+            for (int i = 0; i < basePathSearchTerms.size(); i++) {
+                query.bind("path%s".formatted(i), basePathSearchTerms.get(i));
+            }
+            for (int i = 0; i < searchTerms.size(); i++) {
+                query.bind("term%s".formatted(i), searchTerms.get(i));
+            }
+            if (!directoryIds.isEmpty()) {
+                query.bindList("directoryIds", directoryIds);
+            }
+
+            query.bind("limit", pageSize);
+            query.bind("offset", offset);
+            return query.mapTo(DbFile.class).stream().toList();
+        });
+        long startQueryTime = System.currentTimeMillis();
+        LOG.debug("Performing database search for media took {}ms (page={}, pageSize={}, offset={})",
+                System.currentTimeMillis() - startQueryTime,
+                startPage, pageSize, offset);
+        return mediaFiles;
+    }
+
     GalleryFile createGalleryFileFromDbFile(DbFile dbFile) {
         try {
             String path = dbFile.getPathOnDisk();
@@ -305,7 +398,15 @@ public class GallerySearchService implements FileChangeListener {
         }
     }
 
-    void createOrUpdateOneDirectory(File directory, Collection<File> rootDirectories) throws IOException {
+    /**
+     * Upserts one directory. It is assumed it has been checked that the directory resides under one of the root directories. If it's a root
+     * directory it will not have a parent.
+     *
+     * @param directory       Directory
+     * @param rootDirectories All root directories in the system
+     * @throws IOException If directory cannot be upserted
+     */
+    void upsertOneDirectory(File directory, Collection<File> rootDirectories) throws IOException {
         final String findParentQuery = """
                 SELECT id FROM gallery_file
                 WHERE path_on_disk = :path_on_disk
@@ -350,7 +451,8 @@ public class GallerySearchService implements FileChangeListener {
                 """;
         return jdbi.withHandle(handle -> {
             Optional<DbFile> dbFile =
-                    handle.createQuery(findOneQuery).bind("path_on_disk", file.getCanonicalPath()).mapTo(DbFile.class).stream().findAny();
+                    handle.createQuery(findOneQuery).bind("path_on_disk", file.getCanonicalPath()).mapTo(DbFile.class).stream()
+                            .findAny();
             return dbFile.isPresent() && dbFile.get().getLastModified() != null &&
                     dbFile.get().getLastModified().toEpochMilli() >= file.lastModified();
         });
@@ -408,15 +510,15 @@ public class GallerySearchService implements FileChangeListener {
             AtomicLong atomicFileId = new AtomicLong();
 
             jdbi.useHandle(handle -> {
-                Integer parentId = handle.createQuery(findParentQuery).bind("path_on_disk", parentPath).mapTo(Integer.class).one();
-                if (parentId == null) {
-                    throw new IOException("File %s did not have a valid parent directory".formatted(file.getCanonicalPath()));
-                }
+                Integer parentId =
+                        handle.createQuery(findParentQuery).bind("path_on_disk", parentPath).mapTo(Integer.class).findOne()
+                                .orElse(null);
                 Long fileId = handle.createUpdate(mergeQuery).bind("parent_id", parentId).bind("path_on_disk", file.getCanonicalPath())
                         .bind("file_type", isVideo(file) ? "video" : "image").bind("content_type", contentType)
                         .bind("location", point)
                         .bind("date_taken", metadata.dateTaken() != null ? new Timestamp(metadata.dateTaken().toEpochMilli()) : null)
-                        .bind("last_modified", new Timestamp(file.lastModified())).executeAndReturnGeneratedKeys().mapTo(Long.class).one();
+                        .bind("last_modified", new Timestamp(file.lastModified())).executeAndReturnGeneratedKeys().mapTo(Long.class)
+                        .one();
 
                 atomicFileId.set(fileId);
             });
@@ -449,11 +551,13 @@ public class GallerySearchService implements FileChangeListener {
                 break;
             }
         }
-        Map<String, List<Location>> featureCodeLocationsMap = locations.stream().collect(Collectors.groupingBy(Location::getFeatureCode));
+        Map<String, List<Location>> featureCodeLocationsMap =
+                locations.stream().collect(Collectors.groupingBy(Location::getFeatureCode));
         List<Location> result =
                 featureCodeLocationsMap.values().stream().map(List::getFirst).collect(Collectors.toCollection(ArrayList::new));
         if (featureCodeLocationsMap.keySet().stream().noneMatch(LOCATION_CITY_OR_TOWN_FEATURE_CODE::contains)) {
-            List<Location> nearestCitiesOrTowns = getNearestLocations(lon, lat, maxDistances.getLast(), LOCATION_CITY_OR_TOWN_FEATURE_CODE);
+            List<Location> nearestCitiesOrTowns =
+                    getNearestLocations(lon, lat, maxDistances.getLast(), LOCATION_CITY_OR_TOWN_FEATURE_CODE);
             LOG.debug("No city or town in initial search. Feature code filtered search returned result: {}",
                     !nearestCitiesOrTowns.isEmpty());
             if (!nearestCitiesOrTowns.isEmpty()) {
@@ -520,7 +624,8 @@ public class GallerySearchService implements FileChangeListener {
 
     void updateFilenameTags(File fileOrDir, long fileId) throws IOException {
         List<TypeAndText> filenameParts =
-                filenameToSearchTermsStrategy.generateSearchTermsFromFilename(fileOrDir).stream().map(part -> new TypeAndText(null, part))
+                filenameToSearchTermsStrategy.generateSearchTermsFromFilename(fileOrDir).stream()
+                        .map(part -> new TypeAndText(null, part))
                         .toList();
         updateTagsForSource(fileOrDir, fileId, "FILENAME", filenameParts);
     }
