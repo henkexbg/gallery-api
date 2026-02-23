@@ -135,26 +135,28 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
     public SearchResult search(SearchQuery searchQuery) throws IOException, NotAllowedException {
         long startTime = System.currentTimeMillis();
         String publicPath = searchQuery.publicPath();
-        List<String> basePathSearchTerms = new ArrayList<>();
+        List<String> basePaths = new ArrayList<>();
         if (StringUtils.isNotBlank(publicPath)) {
-            basePathSearchTerms.add(galleryAuthorizationService.getRealFileOrDir(publicPath).getCanonicalPath() + "/_%");
+            basePaths.add(galleryAuthorizationService.getRealFileOrDir(publicPath).getCanonicalPath());
         } else {
             galleryAuthorizationService.getRootPathsForCurrentUser().values().forEach(f -> {
                 try {
-                    basePathSearchTerms.add(f.getCanonicalPath() + "/_%");
+                    basePaths.add(f.getCanonicalPath());
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
             });
         }
+        List<String> basePathSearchTerms = basePaths.stream().map(bp -> bp + "/_%").toList();
         String searchTerm = searchQuery.searchTerm();
         List<String> searchTerms = searchTerm != null ?
                 Arrays.stream(searchTerm.split("\\s")).map(String::trim).map(String::toLowerCase).map(s -> s + "%").toList() :
                 Collections.emptyList();
-        LOG.debug("Performing search with publicPath={}, basePaths={} searchTerm={}", publicPath, basePathSearchTerms, searchTerm);
+        LOG.debug("Performing search with publicPath={}, basePaths={} searchTerm={}", publicPath, basePaths, searchTerm);
 
         try {
-            List<DbFile> dbDirectories = findDirectoriesForQuery(searchTerms, basePathSearchTerms);
+            List<DbFile> dbDirectories = searchTerms.isEmpty() ? findDirectoriesForQuery(basePaths) :
+                    findDirectoriesForQuery(searchTerms, basePathSearchTerms);
             Set<Long> directoryIds = dbDirectories.stream().map(DbFile::getId).collect(Collectors.toSet());
             List<DbFile> dbMedia =
                     findMediaForQuery(searchTerms, basePathSearchTerms, directoryIds, searchQuery.page(), searchQuery.pageSize());
@@ -275,6 +277,38 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
         }
     }
 
+    /**
+     * Finds directories in the "simple" case when there are no search terms. In that case we only want to return directories that are
+     * direct children of the current path. In case we haven't selected any path at all, then we'll return all the directories that are
+     * direct children of all the users allowed root paths
+     *
+     * @param basePaths Base paths, either the current public path, in which case the list will only have one value, or all root paths for
+     *                  the user
+     * @return A list of directories
+     */
+    List<DbFile> findDirectoriesForQuery(List<String> basePaths) {
+        final String parentQuery = "SELECT f.ID FROM GALLERY_FILE f WHERE f.is_directory = TRUE AND f.PATH_ON_DISK IN (<basePaths>)";
+        List<Long> parentIds = jdbi.withHandle(handle -> {
+            Query query = handle.createQuery(parentQuery).bindList("basePaths", basePaths);
+            return query.mapTo(Long.class).stream().toList();
+        });
+        final String directoryQuery = """
+                SELECT * FROM GALLERY_FILE f WHERE f.is_directory = TRUE AND f.PARENT_ID IN (<parentIds>) ORDER BY f.id ASC
+                """;
+        return jdbi.withHandle(handle -> {
+            Query query = handle.createQuery(directoryQuery).bindList("parentIds", parentIds);
+            return query.mapTo(DbFile.class).stream().toList();
+        });
+    }
+
+    /**
+     * Finds directories in the case where search terms have been provided. In that case we want to find directories no matter if they are
+     * direct or indirect children of the current base paths.
+     *
+     * @param searchTerms         Search terms. Already contain SQL wildcards
+     * @param basePathSearchTerms Base path search terms. Already contain SQL wildcards
+     * @return A list of directories
+     */
     List<DbFile> findDirectoriesForQuery(List<String> searchTerms, List<String> basePathSearchTerms) {
         // Not pretty but we need to build a prepared statement with a dynamic number of paths and search terms
         StringBuilder sb = new StringBuilder("SELECT * FROM GALLERY_FILE f WHERE f.is_directory = TRUE AND (");
