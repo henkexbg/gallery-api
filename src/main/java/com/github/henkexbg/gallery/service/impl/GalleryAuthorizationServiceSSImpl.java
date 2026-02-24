@@ -168,12 +168,8 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
 	}
 
 	private Collection<String> getCurrentUserRoles() {
-		Collection<? extends GrantedAuthority> authorities = SecurityContextHolder.getContext().getAuthentication()
-				.getAuthorities();
-		Collection<String> currentUserRoles = authorities.stream().map(GrantedAuthority::getAuthority)
-				.collect(Collectors.toSet());
-		LOG.debug("Roles for current user: {}", currentUserRoles);
-		return currentUserRoles;
+		Collection<? extends GrantedAuthority> authorities = SecurityContextHolder.getContext().getAuthentication().getAuthorities();
+		return authorities.stream().map(GrantedAuthority::getAuthority).collect(Collectors.toSet());
 	}
 
 	@Override

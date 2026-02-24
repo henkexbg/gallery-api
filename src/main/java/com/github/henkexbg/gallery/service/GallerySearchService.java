@@ -287,13 +287,13 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
      * @return A list of directories
      */
     List<DbFile> findDirectoriesForQuery(List<String> basePaths) {
-        final String parentQuery = "SELECT f.ID FROM GALLERY_FILE f WHERE f.is_directory = TRUE AND f.PATH_ON_DISK IN (<basePaths>)";
+        final String parentQuery = "SELECT f.id FROM GALLERY_FILE f WHERE f.is_directory = TRUE AND f.path_on_disk IN (<basePaths>)";
         List<Long> parentIds = jdbi.withHandle(handle -> {
             Query query = handle.createQuery(parentQuery).bindList("basePaths", basePaths);
             return query.mapTo(Long.class).stream().toList();
         });
         final String directoryQuery = """
-                SELECT * FROM GALLERY_FILE f WHERE f.is_directory = TRUE AND f.PARENT_ID IN (<parentIds>) ORDER BY f.id ASC
+                SELECT * FROM GALLERY_FILE f WHERE f.is_directory = TRUE AND f.parent_id IN (<parentIds>) ORDER BY f.path_on_disk ASC
                 """;
         return jdbi.withHandle(handle -> {
             Query query = handle.createQuery(directoryQuery).bindList("parentIds", parentIds);
@@ -314,14 +314,14 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
         StringBuilder sb = new StringBuilder("SELECT * FROM GALLERY_FILE f WHERE f.is_directory = TRUE AND (");
         for (int i = 0; i < basePathSearchTerms.size(); i++) {
             if (i > 0) sb.append(" OR ");
-            sb.append("f.PATH_ON_DISK LIKE :path%s".formatted(i));
+            sb.append("f.path_on_disk LIKE :path%s".formatted(i));
         }
         sb.append(")");
         if (!searchTerms.isEmpty()) {
-            sb.append(" AND f.ID IN (SELECT DISTINCT t.FILE_ID FROM TAG t WHERE ");
+            sb.append(" AND f.ID IN (SELECT DISTINCT t.file_id FROM TAG t WHERE ");
             for (int i = 0; i < searchTerms.size(); i++) {
                 if (i > 0) sb.append(" OR ");
-                sb.append("t.TEXT LIKE :term%s".formatted(i));
+                sb.append("t.text LIKE :term%s".formatted(i));
             }
             sb.append(")");
         }
@@ -344,23 +344,24 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
         StringBuilder sb = new StringBuilder("SELECT * FROM GALLERY_FILE f WHERE f.is_directory = FALSE AND (");
         for (int i = 0; i < basePathSearchTerms.size(); i++) {
             if (i > 0) sb.append(" OR ");
-            sb.append("f.PATH_ON_DISK LIKE :path%s".formatted(i));
+            sb.append("f.path_on_disk LIKE :path%s".formatted(i));
         }
         sb.append(")");
         List<String> orQueries = new ArrayList<>();
 
         if (!searchTerms.isEmpty()) {
             StringBuilder tagsQueryBuilder = new StringBuilder();
-            tagsQueryBuilder.append("(f.ID IN (SELECT DISTINCT t.FILE_ID FROM TAG t WHERE ");
+            tagsQueryBuilder.append("(f.id IN (SELECT DISTINCT t.file_id FROM TAG t WHERE ");
             for (int i = 0; i < searchTerms.size(); i++) {
                 if (i > 0) tagsQueryBuilder.append(" OR ");
-                tagsQueryBuilder.append("t.TEXT LIKE :term%s".formatted(i));
+                tagsQueryBuilder.append("t.text LIKE :term%s".formatted(i));
             }
             tagsQueryBuilder.append("))");
             orQueries.add(tagsQueryBuilder.toString());
-        }
-        if (!directoryIds.isEmpty()) {
-            orQueries.add("(f.PARENT_ID IN (<directoryIds>))");
+
+            if (!directoryIds.isEmpty()) {
+                orQueries.add("(f.parent_id IN (<directoryIds>))");
+            }
         }
         if (!orQueries.isEmpty()) {
             sb.append(" AND (");
@@ -374,7 +375,7 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
                         MAX_PAGE_SIZE :
                         givenPageSize;
         int offset = Math.max(0, startPage * pageSize);
-        sb.append(" LIMIT :limit OFFSET :offset");
+        sb.append(" ORDER BY f.date_taken DESC LIMIT :limit OFFSET :offset");
         List<DbFile> mediaFiles = jdbi.withHandle(handle -> {
             Query query = handle.createQuery(sb.toString());
             for (int i = 0; i < basePathSearchTerms.size(); i++) {

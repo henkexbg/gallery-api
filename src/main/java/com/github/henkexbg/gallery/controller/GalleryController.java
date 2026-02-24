@@ -134,7 +134,7 @@ public class GalleryController {
         SearchResult searchResult = gallerySearchService.search(query);
         listingContext.setMedia(convertToGalleryFileHolders(contextPath, searchResult.files()));
         listingContext.setDirectories(convertToGalleryDirectoryHolders(contextPath, searchResult.directories()));
-        LOG.debug("Found {} media files, {} directories in {} milliseconds", searchResult.files(), searchResult.directories().size(),
+        LOG.debug("Found {} media files, {} directories in {} milliseconds", searchResult.files().size(), searchResult.directories().size(),
                 System.currentTimeMillis() - startTime);
         return listingContext;
     }
