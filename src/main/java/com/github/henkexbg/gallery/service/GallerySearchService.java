@@ -159,7 +159,7 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
                     findDirectoriesForQuery(searchTerms, basePathSearchTerms);
             Set<Long> directoryIds = dbDirectories.stream().map(DbFile::getId).collect(Collectors.toSet());
             List<DbFile> dbMedia =
-                    findMediaForQuery(searchTerms, basePathSearchTerms, directoryIds, searchQuery.page(), searchQuery.pageSize());
+                    findMediaForQuery(searchTerms, basePathSearchTerms, directoryIds, searchQuery.sortOrder(), searchQuery.page(), searchQuery.pageSize());
 
             List<GalleryFile> galleryFiles = dbMedia.stream().map(this::createGalleryFileFromDbFile).filter(Objects::nonNull).toList();
             List<GalleryDirectory> galleryDirectories =
@@ -338,8 +338,19 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
         });
     }
 
-    List<DbFile> findMediaForQuery(List<String> searchTerms, List<String> basePathSearchTerms, Collection<Long> directoryIds, Integer page,
-                                   Integer givenPageSize) {
+    /**
+     * Finds media based on the given queries. As opposed to directories, media is paginated. Sorting is always on dataTaken, but sort order
+     * is a parameter.
+     * @param searchTerms         Search terms. Already contain SQL wildcards
+     * @param basePathSearchTerms Base path search terms. Already contain SQL wildcards
+     * @param directoryIds Directory IDs for which media should be returned since the directory matched the query, even if the media itself does not
+     * @param sortOrder Sort order. May be null, defaults to DESC
+     * @param page Page. 0-based. May be null, defaults to 0
+     * @param givenPageSize Page sze. May be null, defaults to {@link #MAX_PAGE_SIZE}
+     * @return A list of matching media files
+     */
+    List<DbFile> findMediaForQuery(List<String> searchTerms, List<String> basePathSearchTerms, Collection<Long> directoryIds,
+                                   SortOrder sortOrder, Integer page, Integer givenPageSize) {
         // Not pretty but we need to build a prepared statement with a dynamic number of paths and search terms
         StringBuilder sb = new StringBuilder("SELECT * FROM GALLERY_FILE f WHERE f.is_directory = FALSE AND (");
         for (int i = 0; i < basePathSearchTerms.size(); i++) {
@@ -375,7 +386,8 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
                         MAX_PAGE_SIZE :
                         givenPageSize;
         int offset = Math.max(0, startPage * pageSize);
-        sb.append(" ORDER BY f.date_taken DESC LIMIT :limit OFFSET :offset");
+        SortOrder effectiveSort = sortOrder != null ? sortOrder : SortOrder.DESC;
+        sb.append(" ORDER BY f.date_taken ").append(effectiveSort.name()).append(" LIMIT :limit OFFSET :offset");
         List<DbFile> mediaFiles = jdbi.withHandle(handle -> {
             Query query = handle.createQuery(sb.toString());
             for (int i = 0; i < basePathSearchTerms.size(); i++) {
@@ -387,7 +399,6 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
             if (!directoryIds.isEmpty()) {
                 query.bindList("directoryIds", directoryIds);
             }
-
             query.bind("limit", pageSize);
             query.bind("offset", offset);
             return query.mapTo(DbFile.class).stream().toList();
@@ -716,7 +727,11 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
         return allDirectories;
     }
 
-    public record SearchQuery(String publicPath, String searchTerm, Integer page, Integer pageSize) {
+    public record SearchQuery(String publicPath, String searchTerm, Integer page, Integer pageSize, SortOrder sortOrder) {
+    }
+
+    public enum SortOrder {
+        ASC, DESC
     }
 
     enum FileAction {

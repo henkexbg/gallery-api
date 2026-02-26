@@ -120,7 +120,8 @@ public class GalleryController {
     public ListingContext query(HttpServletRequest servletRequest, @PathVariable String filePath,
                                 @RequestParam(required = false, value = "searchTerm") String searchTerm,
                                 @RequestParam(required = false, value = "page") Integer page,
-                                @RequestParam(required = false, value = "pageSize") Integer pageSize) throws Exception {
+                                @RequestParam(required = false, value = "pageSize") Integer pageSize,
+                                @RequestParam(required = false, value = "sortOrder") GallerySearchService.SortOrder sortOrder) throws Exception {
         long startTime = System.currentTimeMillis();
         // Extracted public path starts with '/', public path does not
         String publicPath = extractPublicPath(filePath);
@@ -130,7 +131,7 @@ public class GalleryController {
         listingContext.setAllowCustomImageSizes(allowCustomImageSizes);
         listingContext.setImageFormats(imageFormats);
         listingContext.setVideoFormats(videoFormats);
-        GallerySearchService.SearchQuery query = new GallerySearchService.SearchQuery(publicPath, searchTerm, page, pageSize);
+        GallerySearchService.SearchQuery query = new GallerySearchService.SearchQuery(publicPath, searchTerm, page, pageSize, sortOrder);
         SearchResult searchResult = gallerySearchService.search(query);
         listingContext.setMedia(convertToGalleryFileHolders(contextPath, searchResult.files()));
         listingContext.setDirectories(convertToGalleryDirectoryHolders(contextPath, searchResult.directories()));
