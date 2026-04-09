@@ -17,16 +17,15 @@ package com.github.henkexbg.gallery.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import com.github.henkexbg.gallery.bean.UserInfo;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 
 /**
- * Service for authorization-related functionality, mostly around determining
- * which files a certain user has access to. <br>
- * A number of root paths are defined per user. This service assumes that all
- * files under this root paths are considered allowed.
+ * Service for authorization-related functionality, mostly around determining which files a certain user has access to. <br> A number of
+ * root paths are defined per user. This service assumes that all files under this root paths are considered allowed.
  *
  * @author Henrik Bjerne
  *
@@ -34,27 +33,30 @@ import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 public interface GalleryAuthorizationService {
 
     /**
-     * Retrieves the public root paths for the current user. Any of these paths is
-     * allowed to be accessed, though there is of course no guarantee the root path
-     * will contain anything.
+     * Retrieves the public root paths for the current user. Any of these paths is allowed to be accessed, though there is of course no
+     * guarantee the root path will contain anything.
      *
-     * @return A Map where the key is a descriptive name, and the value is the
-     *         actual directory to which the user has access.
+     * @return A Map where the key is a descriptive name, and the value is the actual directory to which the user has access.
      */
     Map<String, File> getRootPathsForCurrentUser();
 
     /**
-     * Looks up the actual file based on the public path. This method also checks
-     * that the current user has right to access the file in question. It does
-     * however NOT check whether the file actually exists - as long as the path is
-     * allowed according to the configuration, this method will return the
-     * corresponding file.
+     * Retrieves all root directories across all roles. This is for administrative purposes and required the calling user to have
+     * ROLE_ADMIN.
+     *
+     * @return A list of files
+     * @throws NotAllowedException If user is not admin
+     */
+    List<File> getAllRootDirectoriesInSystem() throws NotAllowedException;
+
+    /**
+     * Looks up the actual file based on the public path. This method also checks that the current user has right to access the file in
+     * question. It does however NOT check whether the file actually exists - as long as the path is allowed according to the configuration,
+     * this method will return the corresponding file.
      *
      * @param publicPath Public path
-     * @return The file or directory as pointed to by the public path for the
-     *         current user
-     * @throws NotAllowedException If the provided public path does not resolve to a
-     *                             real file that the current user has access to
+     * @return The file or directory as pointed to by the public path for the current user
+     * @throws NotAllowedException If the provided public path does not resolve to a real file that the current user has access to
      * @throws IOException         If any more general errors occurs
      */
     File getRealFileOrDir(String publicPath) throws IOException, NotAllowedException;
@@ -68,17 +70,15 @@ public interface GalleryAuthorizationService {
 
     /**
      * Returns info about the current user
+     *
      * @return UserInfo
      */
     UserInfo getCurrentUserInfo();
 
     /**
-     * The admin user is required for certain management tasks (for instance
-     * cronjobs). This user should have all the rights of all the users. This
-     * methods logs that user in. <br>
-     * NOTE: It is probably a good idea never to call these methods from a thread
-     * that also handles requests! Though it would be implementation dependent, it
-     * does sound a bit risky no matter how you twist it. Just saying.
+     * The admin user is required for certain management tasks (for instance cronjobs). This user should have all the rights of all the
+     * users. This methods logs that user in. <br> NOTE: It is probably a good idea never to call these methods from a thread that also
+     * handles requests! Though it would be implementation dependent, it does sound a bit risky no matter how you twist it. Just saying.
      */
     void loginAdminUser();
 

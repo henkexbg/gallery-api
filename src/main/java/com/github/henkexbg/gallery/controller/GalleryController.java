@@ -333,7 +333,7 @@ public class GalleryController {
      */
     private List<GalleryFileHolder> convertToGalleryFileHolders(String contextPath, List<GalleryFile> galleryFiles) {
         List<GalleryFileHolder> galleryFileHolders = new ArrayList<>(galleryFiles.size());
-        galleryFiles.forEach(gf -> galleryFileHolders.add(convertToGalleryFileHolder(contextPath, gf)));
+        galleryFiles.forEach(gf -> galleryFileHolders.add(convertToGalleryFileHolder(contextPath, gf, true)));
         return galleryFileHolders;
     }
 
@@ -344,17 +344,22 @@ public class GalleryController {
      *
      * @param contextPath Webapp context path.
      * @param galleryFile Gallery file.
+     * @param addParent If true, parentPath is added
      * @return A gallery file holder
      */
-    private GalleryFileHolder convertToGalleryFileHolder(String contextPath, GalleryFile galleryFile) {
+    private GalleryFileHolder convertToGalleryFileHolder(String contextPath, GalleryFile galleryFile, boolean addParent) {
         GalleryFileHolder galleryFileHolder = new GalleryFileHolder();
+        String publicPath = galleryFile.getPublicPath();
+        if (addParent) {
+            galleryFileHolder.setParentPath(generateParentPath(contextPath, publicPath));
+        }
         galleryFileHolder.setFilename(galleryFile.getActualFile().getName());
         if (allowCustomImageSizes) {
             galleryFileHolder.setFreeSizePath(generateCustomImageUrlTemplate(contextPath, galleryFile));
         }
         galleryFileHolder.setFormatPath(generateDynamicImageUrl(contextPath, galleryFile));
         if (GalleryFileType.VIDEO.equals(galleryFile.getType())) {
-            galleryFileHolder.setVideoPath(contextPath + "/video/{conversionFormat}/" + galleryFile.getPublicPath());
+            galleryFileHolder.setVideoPath(contextPath + "/video/{conversionFormat}/" + publicPath);
         }
         galleryFileHolder.setContentType(galleryFile.getContentType());
         galleryFileHolder.setDateTaken(galleryFile.getDateTaken());
@@ -369,18 +374,17 @@ public class GalleryController {
      * @return A list of gallery directory holders
      */
     private List<GalleryDirectoryHolder> convertToGalleryDirectoryHolders(String contextPath, List<GalleryDirectory> galleryDirectories) {
-        List<GalleryDirectoryHolder> galleryDirectoryHolders = new ArrayList<>(galleryDirectories.size());
-        for (GalleryDirectory oneGalleryDirectory : galleryDirectories) {
+        return galleryDirectories.stream().map(oneGalleryDirectory -> {
             GalleryDirectoryHolder oneGalleryDirectoryHolder = new GalleryDirectoryHolder();
             String onePublicPath = oneGalleryDirectory.getPublicPath();
             oneGalleryDirectoryHolder.setName(oneGalleryDirectory.getName());
             oneGalleryDirectoryHolder.setPath(contextPath + SERVICE_PATH + onePublicPath);
+            oneGalleryDirectoryHolder.setParentPath(generateParentPath(contextPath, onePublicPath));
             if (oneGalleryDirectory.getImage() != null) {
-                oneGalleryDirectoryHolder.setImage(convertToGalleryFileHolder(contextPath, oneGalleryDirectory.getImage()));
+                oneGalleryDirectoryHolder.setImage(convertToGalleryFileHolder(contextPath, oneGalleryDirectory.getImage(), false));
             }
-            galleryDirectoryHolders.add(oneGalleryDirectoryHolder);
-        }
-        return galleryDirectoryHolders;
+            return oneGalleryDirectoryHolder;
+        }).toList();
     }
 
     /**
@@ -404,6 +408,16 @@ public class GalleryController {
      */
     private String generateCustomImageUrlTemplate(String contextPath, GalleryFile file) {
         return contextPath + "/customImage/{width}/{height}/" + file.getPublicPath();
+    }
+
+    /**
+     * Generates the parent path given a contextPath and a public path.
+     * @param contextPath Context path
+     * @param publicPath Public path (not including context)
+     * @return The parent path
+     */
+    private String generateParentPath(String contextPath, String publicPath) {
+        return contextPath + SERVICE_PATH + publicPath.substring(0, publicPath.lastIndexOf('/'));
     }
 
     /**

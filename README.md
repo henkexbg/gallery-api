@@ -123,7 +123,7 @@ Authentication is performed **either** by using normal basic auth headers, **or*
 
 The user will then need to pass the session cookies on subsequent requests.
 
-# Load the DB with location data
+# Load the DB With Location Data
 The location data in the database is initially empty. While customizable, the simplest way to populate it is to call:
 * `POST https://HOST:PORT/gallery/admin/db/locations` with an admin user.
 

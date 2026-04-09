@@ -43,7 +43,7 @@ public class AdminController {
     }
 
     @PostMapping("/db/locations")
-    public void updateLocationsFromDefaultSource(@RequestParam(required = false) URI fileUri) throws Exception {
+    public void updateLocations(@RequestParam(required = false) URI fileUri) throws Exception {
         if (!galleryAuthorizationService.isAdmin()) {
             throw new NotAllowedException("Not allowed");
         }

@@ -183,13 +183,15 @@ public class GalleryService {
     }
 
     /**
-     * Checks whether file has an allowed file extension. Checked in a case insensitive way.
+     * Checks whether file has an allowed file extension (case-insensitive), and whether the filename starts with a dot. We skip these
+     * mostly due to MacOS's horrible metadata files on shared drives.
      *
      * @param file File
      * @return True if allowed
      */
-    public boolean isAllowedExtension(File file) {
-        return allowedFileExtensions.contains(getExtension(file.getName()).toLowerCase());
+    public boolean isAllowedMediaFilename(File file) {
+        String filename = file.getName();
+        return allowedFileExtensions.contains(getExtension(file.getName()).toLowerCase()) && !filename.startsWith(".");
     }
 
     /**
@@ -244,7 +246,7 @@ public class GalleryService {
         if (!file.exists()) {
             throw new FileNotFoundException("File not found!");
         }
-        if (!file.isDirectory() && !isAllowedExtension(file)) {
+        if (!file.isDirectory() && !isAllowedMediaFilename(file)) {
             throw new NotAllowedException("File " + publicPath + " did not have an allowed file extension");
         }
         return file;
@@ -420,7 +422,7 @@ public class GalleryService {
 
         @Override
         public boolean accept(File file) {
-            return file.exists() && file.length() > 0 && isAllowedExtension(file);
+            return file.exists() && file.length() > 0 && isAllowedMediaFilename(file);
         }
 
         @Override

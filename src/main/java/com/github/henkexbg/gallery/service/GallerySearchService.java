@@ -91,7 +91,7 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
                     galleryAuthorizationService.loginAdminUser();
                     fileAndAction = updatedFilesQueue.take();
                     LOG.debug("Update thread received {}. Remaining files in queue: {}", fileAndAction, updatedFilesQueue.size());
-                    Collection<File> rootDirectories = getRootDirectoriesForCurrentUser();
+                    Collection<File> rootDirectories = galleryAuthorizationService.getAllRootDirectoriesInSystem();
                     File file = fileAndAction.file();
                     if (fileAndAction.fileAction() == FileAction.UPDATE) {
                         if (file.isDirectory()) {
@@ -104,7 +104,7 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
                     }
                 } catch (InterruptedException ie) {
                     LOG.debug("Update thread interrupted");
-                } catch (IOException e) {
+                } catch (Exception e) {
                     LOG.error("Error when updating {}. Ignoring", fileAndAction, e);
                 }
             }
@@ -182,7 +182,7 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
             if (removeAll) {
                 deleteAllFilesAndDirectories();
             }
-            Collection<File> rootDirectories = getRootDirectoriesForCurrentUser();
+            Collection<File> rootDirectories = galleryAuthorizationService.getAllRootDirectoriesInSystem();
             Collection<File> allDirectoriesCol = getAllDirectories(rootDirectories);
             List<File> allDirectoriesSorted =
                     allDirectoriesCol.stream().sorted(Comparator.comparingInt(f -> getPathName(f).length())).toList();
@@ -532,7 +532,7 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
 
     void createOrUpdateOneFile(File file) throws IOException {
         try {
-            if (!galleryService.isAllowedExtension(file)) {
+            if (!galleryService.isAllowedMediaFilename(file)) {
                 return;
             }
             if (isDbUpToDate(file)) {
@@ -712,11 +712,6 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
             LOG.error("Error while creating or updating tags for file {} with ID {} in database", fileOrDir, fileId, e);
             throw new IOException(e);
         }
-    }
-
-    Collection<File> getRootDirectoriesForCurrentUser() throws IOException {
-        Map<String, File> rootPathsForCurrentUser = galleryAuthorizationService.getRootPathsForCurrentUser();
-        return rootPathsForCurrentUser.values();
     }
 
     Collection<File> getAllDirectories(Collection<File> dirs) throws IOException, NotAllowedException {

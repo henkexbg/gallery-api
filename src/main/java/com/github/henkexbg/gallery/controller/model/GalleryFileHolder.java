@@ -32,6 +32,8 @@ import java.time.Instant;
  */
 public class GalleryFileHolder {
 
+    private String parentPath;
+
     private String freeSizePath;
     
     private String formatPath;
@@ -45,6 +47,14 @@ public class GalleryFileHolder {
     private String name;
 
     private Instant dateTaken;
+
+    public String getParentPath() {
+        return parentPath;
+    }
+
+    public void setParentPath(String parentPath) {
+        this.parentPath = parentPath;
+    }
 
     public String getFreeSizePath() {
         return freeSizePath;

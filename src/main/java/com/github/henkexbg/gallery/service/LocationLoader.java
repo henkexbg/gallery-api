@@ -23,6 +23,9 @@ import java.util.Iterator;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+/**
+ * Loads locations into the internal database, which will then be used to enrich media with location metadata during indexing of media.
+ */
 @Service
 public class LocationLoader {
 
@@ -41,6 +44,15 @@ public class LocationLoader {
     @Value("${gallery.location.source.default.uri}")
     URI sourceDefaultUri;
 
+    /**
+     * Loads location from a URI. The provided file must be in the Geonames standard format, which is a tab-delimited file with a large
+     * number of columns. Only a subset of the attributes are loaded to avoid the internal database taking up too much space. The provided
+     * URI is optional. It may point to either a local file or an HTTP(S) URL. The file may be provided as a ZIP file, in which case it's
+     * unzipped before being processed.
+     *
+     * @param locationFileUri An optional URI. If not provided, the {@link #sourceDefaultUri} will be used.
+     * @throws IOException If locations cannot be loaded
+     */
     public void loadDataFromGeoNames(URI locationFileUri) throws IOException {
         File locationFile = null;
         try {
@@ -71,7 +83,7 @@ public class LocationLoader {
                 contentType = GalleryFileUtils.getContentType(locationFile);
             }
             if ("application/zip".equals(contentType)) {
-                //Unzip
+                // Unzip
                 locationFile = unzipAndDeleteZippedFile(locationFile);
             }
 
@@ -124,6 +136,14 @@ public class LocationLoader {
         }
     }
 
+    /**
+     * Unzips the provided file and returns the file within the archive. If the archive contains multiple files, the first file found will
+     * be returned. The provided file is then deleted.
+     *
+     * @param zippedFile Zipped file
+     * @return The unzipped file
+     * @throws IOException If a file cannot be extracted from the archive
+     */
     File unzipAndDeleteZippedFile(File zippedFile) throws IOException {
         File unzippedFile;
         byte[] buffer = new byte[65536];

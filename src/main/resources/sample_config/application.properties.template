@@ -5,24 +5,25 @@
 # Base directory of application
 gallery.baseDir=/full/path/to/gallery
 
-# This is where resized images and converted videos will be stored. This may become large
+# This is where resized images and converted videos will be stored. This may become large.
 gallery.resizeDir=/full/path/to/resize-dir
 
 # States allowed origins for cross-origin requests. This property is used to control both CORS and CSRF configuration
-# Relevant if requests are made from sites under other domains.
+# Relevant if requests are made from sites under other domains. If a host is added, all ports are allowed for CORS.
+# Multiple comma-separated values can be added.
 gallery.web.crossOrigin.allowedHosts=localhost
 
 ###############################################################################
 # EXTERNAL BINARIES CONFIG
 ###############################################################################
 
-# This should point to the binary used for video conversion, for instance
-# avconv or ffmpeg. Either just the name or the full path can be entered,
-# depending on the environment.
-gallery.videoConversion.binary=/full/path/to/ffmpeg/bin/ffmpeg
+# The binary used for video conversion, for instance avconv or ffmpeg. Can be a full path or just the binary if it's on
+# the PATH. Default is ffmpeg.
+gallery.videoConversion.binary=ffmpeg
 
-# Points to the exiftool binary, which is used to extract metadata from media
-gallery.metadata.exiftoolPath=/full/path/to/exiftool
+# The exiftool binary, which is used to extract metadata from media. Can be a full path or just the binary if it's on
+# the PATH. Default is exiftool.
+gallery.metadata.exiftoolPath=exiftool
 
 # This is only needed if ImageResizeServiceIMImpl is used for resizing (see gallery.resizing.method below), AND the
 # convert command is not on PATH. This property should then contain the directory - the binary name will be added to it.
