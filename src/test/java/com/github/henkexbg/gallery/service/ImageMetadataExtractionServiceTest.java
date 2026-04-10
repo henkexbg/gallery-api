@@ -1,6 +1,5 @@
 package com.github.henkexbg.gallery.service;
 
-import com.github.henkexbg.gallery.service.impl.MetadataExtractionServiceImpl;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,7 +24,7 @@ public class ImageMetadataExtractionServiceTest {
     public void testBasic3() throws IOException {
 //        MetadataExtractionServiceImpl metadataExtractionService = new MetadataExtractionServiceImpl();
 //        metadataExtractionService.init();
-        MetadataExtractionServiceImpl.FileMetaData metadata = metadataExtractionService.getMetadata(new File("/media/grejs/Bilder/2023-05-06 - 2023-05-07 Camping The Basin/20230506_132834.jpg"));
+        MetadataExtractionService.FileMetaData metadata = metadataExtractionService.getMetadata(new File("/media/grejs/Bilder/2023-05-06 - 2023-05-07 Camping The Basin/20230506_132834.jpg"));
         System.out.println("Result: " + metadata);
 
     }

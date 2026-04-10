@@ -37,12 +37,9 @@ import com.github.henkexbg.gallery.service.exception.NotAllowedException;
 import org.springframework.stereotype.Component;
 
 /**
- * Implementation of the {@link GalleryAuthorizationService} using Spring
- * Security framework. The roles of the current user will be evaluated towards
- * the roles of each root dir to see whether a user has the right to access that
- * root dir or not. This class also listens to
- * {@link GalleryRootDirChangeListener} in order to be able to get runtime
- * changes of the root dirs.
+ * Implementation of the {@link GalleryAuthorizationService} using Spring Security framework. The roles of the current user will be
+ * evaluated towards the roles of each root dir to see whether a user has the right to access that root dir or not. This class also listens
+ * to {@link GalleryRootDirChangeListener} in order to be able to get runtime changes of the root dirs.
  *
  * @author Henrik Bjerne
  *
@@ -53,8 +50,8 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
     private final Logger LOG = LoggerFactory.getLogger(getClass());
 
     /**
-     * Contains a map where each key is a role, and each value is a map where the
-     * key is the root path name and the value is the File of that root path
+     * Contains a map where each key is a role, and each value is a map where the key is the root path name and the value is the File of
+     * that root path
      */
     Map<String, Map<String, File>> rootPathsPerRoleMap = new HashMap<>();
 
@@ -106,8 +103,7 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
     }
 
     /**
-     * Internally converts the root dirs to a more efficient lookup structure and
-     * stores it in {@link #rootPathsPerRoleMap}
+     * Internally converts the root dirs to a more efficient lookup structure and stores it in {@link #rootPathsPerRoleMap}
      */
     @Override
     public void onGalleryRootDirsUpdated(Collection<GalleryRootDir> galleryRootDirs) {
@@ -155,8 +151,7 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
     }
 
     /**
-     * Simpler helper to validate that the child is indeed a canonical child of the
-     * parent file.
+     * Simpler helper to validate that the child is indeed a canonical child of the parent file.
      *
      * @param parent Supposed parent file
      * @param child  Supposed child file

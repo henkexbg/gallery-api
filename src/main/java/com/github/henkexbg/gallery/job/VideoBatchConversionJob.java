@@ -12,7 +12,7 @@
  * ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
  * THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-package com.github.henkexbg.gallery.service.impl;
+package com.github.henkexbg.gallery.job;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,6 +24,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 
+import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
 import com.github.henkexbg.gallery.service.GallerySearchService;
 import com.github.henkexbg.gallery.service.VideoConversionService;
 import jakarta.annotation.PostConstruct;
@@ -34,7 +35,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.henkexbg.gallery.service.GalleryAuthorizationService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 

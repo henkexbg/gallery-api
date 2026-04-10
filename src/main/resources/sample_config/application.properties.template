@@ -59,7 +59,7 @@ spring.web.resources.static-locations=file:${gallery.baseDir}/public
 gallery.allowCustomImageSizes=false
 
 # Comma-separated list of allowed image and video formats. Case doesn't matter.
-gallery.allowedFileExtensions=jpeg,jpg,png,gif,mp4
+gallery.allowedFileExtensions=jpeg,jpg,png,gif,mp4,mov
 
 # Defines the allowed image formats. Multiple formats can be specified by list
 # notation. Each format has three properties: code, width and height.

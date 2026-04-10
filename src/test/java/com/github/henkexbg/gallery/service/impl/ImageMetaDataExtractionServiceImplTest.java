@@ -1,5 +1,6 @@
 package com.github.henkexbg.gallery.service.impl;
 
+import com.github.henkexbg.gallery.service.MetadataExtractionService;
 import com.thebuzzmedia.exiftool.ExifTool;
 import com.thebuzzmedia.exiftool.ExifToolBuilder;
 import com.thebuzzmedia.exiftool.Tag;
@@ -122,10 +123,10 @@ public class ImageMetaDataExtractionServiceImplTest {
 
         @Test
     public void testBasic3() throws IOException {
-            MetadataExtractionServiceImpl metadataExtractionService = new MetadataExtractionServiceImpl();
+            MetadataExtractionService metadataExtractionService = new MetadataExtractionService();
             metadataExtractionService.init();
             //MetadataExtractionServiceImpl.FileMetaData metadata = metadataExtractionService.getMetadata(new File("/media/grejs/Bilder/2017-06-16 Vivid/20170616_181145.jpg"));
-            MetadataExtractionServiceImpl.FileMetaData metadata = metadataExtractionService.getMetadata(new File("/home/henrik/Downloads/20220925_214915.jpg"));
+            MetadataExtractionService.FileMetaData metadata = metadataExtractionService.getMetadata(new File("/home/henrik/Downloads/20220925_214915.jpg"));
 
             System.out.println("Result: " + metadata);
 
