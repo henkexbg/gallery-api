@@ -417,7 +417,11 @@ public class GalleryController {
      * @return The parent path
      */
     private String generateParentPath(String contextPath, String publicPath) {
-        return contextPath + SERVICE_PATH + publicPath.substring(0, publicPath.lastIndexOf('/'));
+        int lastIndexOfSlash = publicPath.lastIndexOf('/');
+        if (lastIndexOfSlash == -1) {
+            return null;
+        }
+        return contextPath + SERVICE_PATH + publicPath.substring(0, lastIndexOfSlash);
     }
 
     /**
