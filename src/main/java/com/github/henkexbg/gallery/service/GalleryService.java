@@ -114,7 +114,7 @@ public class GalleryService {
         }
         File realFile = getRealFileOrDir(publicPath);
         if (realFile.isDirectory()) {
-            realFile = getDirectoryImage(realFile, true);
+            realFile = getDirectoryImage(realFile);
             if (realFile == null) {
                 // Should never happen, but directory images can exist as empty files if there are no images in that directory. This is just
                 // an extra check that we don't even bother to resize that case
@@ -286,7 +286,7 @@ public class GalleryService {
         galleryDirectory.setPublicPath(publicPath);
         galleryDirectory.setName(dirName);
         try {
-            File directoryImage = getDirectoryImage(actualDir, false);
+            File directoryImage = determineDirectoryImage(actualDir);
             if (directoryImage != null) {
                 // Use the public path of the directory, and combine it with the image
                 galleryDirectory.setImage(createGalleryFile(publicPath, directoryImage));
@@ -300,15 +300,14 @@ public class GalleryService {
     /**
      * Retrieves the image for a directory. If necessary the image will be generated first.
      *
-     * @param directory       Directory
-     * @param createIfMissing If true, the directory image will be generated if missing
+     * @param directory Directory
      * @return The generated image, or null if no image could be generated, for example because there are no images in the directory.
      * @throws IOException If any file operation fails
      */
-    File getDirectoryImage(File directory, boolean createIfMissing) throws IOException {
+    File getDirectoryImage(File directory) throws IOException {
         File directoryImage = determineDirectoryImage(directory);
-        if (createIfMissing && (!directoryImage.exists() ||
-                directoryImage.lastModified() < System.currentTimeMillis() - (directoryImageMaxAgeMinutes * 60000))) {
+        if (!directoryImage.exists() ||
+                directoryImage.lastModified() < System.currentTimeMillis() - (directoryImageMaxAgeMinutes * 60000)) {
             LOG.debug("Evaluating directory image for {}", directory);
             List<File> imagesForCompositeDirectoryImage = findImagesForCompositeDirectoryImage(directory);
             if (!imagesForCompositeDirectoryImage.isEmpty()) {
@@ -337,9 +336,6 @@ public class GalleryService {
                 // always try to generate a new file for directories without images
                 directoryImage.createNewFile();
             }
-        }
-        if (directoryImage == null || !directoryImage.exists() || directoryImage.length() == 0) {
-            return null;
         }
         return directoryImage;
     }
