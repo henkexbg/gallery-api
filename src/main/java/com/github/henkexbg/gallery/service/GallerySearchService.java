@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.io.IOException;
 import java.sql.*;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -136,6 +137,11 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
         long startTime = System.currentTimeMillis();
         String publicPath = searchQuery.publicPath();
         List<String> basePaths = new ArrayList<>();
+        String searchTerm = searchQuery.searchTerm();
+        List<String> searchTerms = searchTerm != null ?
+                Arrays.stream(searchTerm.split("\\s")).map(String::trim).map(String::toLowerCase).map(s -> s + "%").toList() :
+                Collections.emptyList();
+        boolean emptyPathAndTerms = false;
         if (StringUtils.isNotBlank(publicPath)) {
             basePaths.add(galleryAuthorizationService.getRealFileOrDir(publicPath).getCanonicalPath());
         } else {
@@ -146,20 +152,20 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
                     throw new RuntimeException(e);
                 }
             });
+            // Set to true if empty path (root paths used) and empty search terms
+            emptyPathAndTerms = searchTerms.isEmpty();
         }
         List<String> basePathSearchTerms = basePaths.stream().map(bp -> bp + "/_%").toList();
-        String searchTerm = searchQuery.searchTerm();
-        List<String> searchTerms = searchTerm != null ?
-                Arrays.stream(searchTerm.split("\\s")).map(String::trim).map(String::toLowerCase).map(s -> s + "%").toList() :
-                Collections.emptyList();
         LOG.debug("Performing search with publicPath={}, basePaths={} searchTerm={}", publicPath, basePaths, searchTerm);
-
         try {
-            List<DbFile> dbDirectories = searchTerms.isEmpty() ? findDirectoriesForQuery(basePaths) :
-                    findDirectoriesForQuery(searchTerms, basePathSearchTerms);
+            SortOrder sortOrder = searchQuery.sortOrder() != null ? searchQuery.sortOrder() : SortOrder.DESC;
+            List<DbFile> dbDirectories = emptyPathAndTerms ? findDirectoriesForRootPaths(basePaths, sortOrder) :
+                    searchTerms.isEmpty() ? findDirectoriesForQuery(basePaths, sortOrder) :
+                            findDirectoriesForQuery(searchTerms, basePathSearchTerms, sortOrder);
             Set<Long> directoryIds = dbDirectories.stream().map(DbFile::getId).collect(Collectors.toSet());
             List<DbFile> dbMedia =
-                    findMediaForQuery(searchTerms, basePathSearchTerms, directoryIds, searchQuery.sortOrder(), searchQuery.page(), searchQuery.pageSize());
+                    findMediaForQuery(searchTerms, basePathSearchTerms, directoryIds, sortOrder, searchQuery.page(),
+                            searchQuery.pageSize());
 
             List<GalleryFile> galleryFiles = dbMedia.stream().map(this::createGalleryFileFromDbFile).filter(Objects::nonNull).toList();
             List<GalleryDirectory> galleryDirectories =
@@ -278,27 +284,37 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
     }
 
     /**
-     * Finds directories in the "simple" case when there are no search terms. In that case we only want to return directories that are
-     * direct children of the current path. In case we haven't selected any path at all, then we'll return all the directories that are
-     * direct children of all the users allowed root paths
+     * Finds directories when there are no search terms and no public path. In that case we only want to return the root paths themselves.
+     *
+     * @param rootPaths All root paths for the user
+     * @param sortOrder Sort order
+     * @return A list of directories
+     */
+    List<DbFile> findDirectoriesForRootPaths(List<String> rootPaths, SortOrder sortOrder) {
+        final String directoryQuery =
+                "SELECT * FROM GALLERY_FILE f WHERE f.is_directory = TRUE AND f.path_on_disk IN (<basePaths>) ORDER BY f.date_taken " +
+                        sortOrder.name();
+        return jdbi.withHandle(
+                handle -> handle.createQuery(directoryQuery).bindList("basePaths", rootPaths).mapTo(DbFile.class).stream().toList());
+    }
+
+    /**
+     * Finds directories when there are no search terms, but there is a public path. In that case we only want to return directories that
+     * are direct children of the current path.
      *
      * @param basePaths Base paths, either the current public path, in which case the list will only have one value, or all root paths for
      *                  the user
      * @return A list of directories
      */
-    List<DbFile> findDirectoriesForQuery(List<String> basePaths) {
-        final String parentQuery = "SELECT f.id FROM GALLERY_FILE f WHERE f.is_directory = TRUE AND f.path_on_disk IN (<basePaths>)";
-        List<Long> parentIds = jdbi.withHandle(handle -> {
-            Query query = handle.createQuery(parentQuery).bindList("basePaths", basePaths);
-            return query.mapTo(Long.class).stream().toList();
-        });
-        final String directoryQuery = """
-                SELECT * FROM GALLERY_FILE f WHERE f.is_directory = TRUE AND f.parent_id IN (<parentIds>) ORDER BY f.path_on_disk ASC
-                """;
-        return jdbi.withHandle(handle -> {
-            Query query = handle.createQuery(directoryQuery).bindList("parentIds", parentIds);
-            return query.mapTo(DbFile.class).stream().toList();
-        });
+    List<DbFile> findDirectoriesForQuery(List<String> basePaths, SortOrder sortOrder) {
+        final String parentQuery = "SELECT f.id FROM GALLERY_FILE f WHERE f.is_directory = TRUE AND f.path_on_disk IN (<basePaths>)" ;
+        List<Long> parentIds = jdbi.withHandle(
+                handle -> handle.createQuery(parentQuery).bindList("basePaths", basePaths).mapTo(Long.class).stream().toList());
+        final String directoryQuery =
+                "SELECT * FROM GALLERY_FILE f WHERE f.is_directory = TRUE AND f.parent_id IN (<parentIds>) ORDER BY f.date_taken " +
+                        sortOrder.name();
+        return jdbi.withHandle(
+                handle -> handle.createQuery(directoryQuery).bindList("parentIds", parentIds).mapTo(DbFile.class).stream().toList());
     }
 
     /**
@@ -309,7 +325,7 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
      * @param basePathSearchTerms Base path search terms. Already contain SQL wildcards
      * @return A list of directories
      */
-    List<DbFile> findDirectoriesForQuery(List<String> searchTerms, List<String> basePathSearchTerms) {
+    List<DbFile> findDirectoriesForQuery(List<String> searchTerms, List<String> basePathSearchTerms, SortOrder sortOrder) {
         // Not pretty but we need to build a prepared statement with a dynamic number of paths and search terms
         StringBuilder sb = new StringBuilder("SELECT * FROM GALLERY_FILE f WHERE f.is_directory = TRUE AND (");
         for (int i = 0; i < basePathSearchTerms.size(); i++) {
@@ -325,7 +341,8 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
             }
             sb.append(")");
         }
-        sb.append("ORDER BY f.id ASC");
+        sb.append("ORDER BY f.date_taken ");
+        sb.append(sortOrder.name());
         return jdbi.withHandle(handle -> {
             Query query = handle.createQuery(sb.toString());
             for (int i = 0; i < basePathSearchTerms.size(); i++) {
@@ -341,12 +358,14 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
     /**
      * Finds media based on the given queries. As opposed to directories, media is paginated. Sorting is always on dataTaken, but sort order
      * is a parameter.
+     *
      * @param searchTerms         Search terms. Already contain SQL wildcards
      * @param basePathSearchTerms Base path search terms. Already contain SQL wildcards
-     * @param directoryIds Directory IDs for which media should be returned since the directory matched the query, even if the media itself does not
-     * @param sortOrder Sort order. May be null, defaults to DESC
-     * @param page Page. 0-based. May be null, defaults to 0
-     * @param givenPageSize Page sze. May be null, defaults to {@link #MAX_PAGE_SIZE}
+     * @param directoryIds        Directory IDs for which media should be returned since the directory matched the query, even if the media
+     *                            itself does not
+     * @param sortOrder           Sort order. May be null, defaults to DESC
+     * @param page                Page. 0-based. May be null, defaults to 0
+     * @param givenPageSize       Page sze. May be null, defaults to {@link #MAX_PAGE_SIZE}
      * @return A list of matching media files
      */
     List<DbFile> findMediaForQuery(List<String> searchTerms, List<String> basePathSearchTerms, Collection<Long> directoryIds,
@@ -386,8 +405,7 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
                         MAX_PAGE_SIZE :
                         givenPageSize;
         int offset = Math.max(0, startPage * pageSize);
-        SortOrder effectiveSort = sortOrder != null ? sortOrder : SortOrder.DESC;
-        sb.append(" ORDER BY f.date_taken ").append(effectiveSort.name()).append(" LIMIT :limit OFFSET :offset");
+        sb.append(" ORDER BY f.date_taken ").append(sortOrder.name()).append(" LIMIT :limit OFFSET :offset");
         List<DbFile> mediaFiles = jdbi.withHandle(handle -> {
             Query query = handle.createQuery(sb.toString());
             for (int i = 0; i < basePathSearchTerms.size(); i++) {
@@ -530,6 +548,16 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
         });
     }
 
+    /**
+     * Creates or updates one media file (not directory) in the DB if it has a valid filename and extension. There is delta detection which
+     * works on last modified time. If the last modified time in DB is later than the file's, no update is made.
+     * <p>
+     * Various metadata is then extracted from the file, and the file and tags are updated. Finally, a call is made to
+     * {@link #updateDirectoryDateTakenRecursive(Long)} to ensure that its dateTaken attribute is correct.
+     *
+     * @param file Filesystem file to add/update in database
+     * @throws IOException If there's an issue loading the file
+     */
     void createOrUpdateOneFile(File file) throws IOException {
         try {
             if (!galleryService.isAllowedMediaFilename(file)) {
@@ -554,10 +582,11 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
                     "POINT(%s %s)".formatted(metadata.gpsLongitude(), metadata.gpsLatitude()) : null;
             String contentType = getContentType(file);
             AtomicLong atomicFileId = new AtomicLong();
+            AtomicLong atomicParentFileId = new AtomicLong(-1);
 
             jdbi.useHandle(handle -> {
-                Integer parentId =
-                        handle.createQuery(findParentQuery).bind("path_on_disk", parentPath).mapTo(Integer.class).findOne()
+                Long parentId =
+                        handle.createQuery(findParentQuery).bind("path_on_disk", parentPath).mapTo(Long.class).findOne()
                                 .orElse(null);
                 Long fileId = handle.createUpdate(mergeQuery).bind("parent_id", parentId).bind("path_on_disk", file.getCanonicalPath())
                         .bind("file_type", isVideo(file) ? "video" : "image").bind("content_type", contentType)
@@ -566,17 +595,60 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
                         .bind("last_modified", new Timestamp(file.lastModified())).executeAndReturnGeneratedKeys().mapTo(Long.class)
                         .one();
 
+
                 atomicFileId.set(fileId);
+                if (parentId != null) {
+                    atomicParentFileId.set(parentId);
+                }
+
             });
             updateFilenameTags(file, atomicFileId.get());
             if (metadata.gpsLatitude() != null && metadata.gpsLongitude() != null) {
                 List<Location> nearestLocations = getBestNearestLocations(metadata.gpsLongitude(), metadata.gpsLatitude());
                 updateLocationTags(file, atomicFileId.get(), nearestLocations);
             }
+            if (atomicParentFileId.get() >= 0 && metadata.dateTaken() != null) {
+                updateDirectoryDateTakenRecursive(atomicParentFileId.get());
+            }
         } catch (Exception e) {
-            throw new IOException(e);
+            throw new IOException("Exception when upserting %s".formatted(file), e);
         }
     }
+
+    /**
+     * Directories don't have any native 'dateTaken', but for sorting purposes we want to populate it. We pick the newest date_taken of the
+     * children and populate that on the directory. If an update was made this is also done recursively for the next parent until we've
+     * reached a root directory or the directory was not updated.
+     *
+     * @param directoryId Directory ID
+     */
+    void updateDirectoryDateTakenRecursive(Long directoryId) {
+        final String newestChildQuery = "SELECT MAX(date_taken) FROM gallery_file WHERE parent_id = :parent_id" ;
+        final String updateDirectoryDateTakenQuery = """
+                UPDATE GALLERY_FILE SET date_taken = :timestamp
+                WHERE id = :id
+                AND (date_taken IS NULL OR date_taken < :timestamp)
+                """;
+        final String findParentIdQuery = "SELECT parent_id FROM gallery_file WHERE id = :id" ;
+        Optional<Instant> updatedDateTakenOpt = jdbi.withHandle(handle -> {
+            Optional<Instant> newestDateTakenOpt =
+                    handle.createQuery(newestChildQuery).bind("parent_id", directoryId).mapTo(Instant.class).findOne();
+            if (newestDateTakenOpt.isEmpty()) {
+                return Optional.empty();
+            }
+            Instant newestDateTaken = newestDateTakenOpt.get();
+            int updateCount = handle.createUpdate(updateDirectoryDateTakenQuery).bind("id", directoryId)
+                    .bind("timestamp", new Timestamp(newestDateTaken.toEpochMilli())).execute();
+            return updateCount > 0 ? Optional.of(newestDateTaken) : Optional.empty();
+        });
+        if (updatedDateTakenOpt.isPresent()) {
+            // Recursive update of higher directories if current directory was updated
+            Optional<Long> parentIdOpt =
+                    jdbi.withHandle(handle -> handle.createQuery(findParentIdQuery).bind("id", directoryId).mapTo(Long.class).findOne());
+            parentIdOpt.ifPresent(this::updateDirectoryDateTakenRecursive);
+        }
+    }
+
 
     /**
      * Retrieves a list of nearest locations. The returned locations are deduplicated based on the feature code. Extra effort is put into
