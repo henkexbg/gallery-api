@@ -29,6 +29,7 @@ import com.github.henkexbg.gallery.bean.GalleryDirectory;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import org.apache.commons.io.filefilter.IOFileFilter;
+import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -344,17 +345,16 @@ public class GalleryService {
     }
 
     /**
-     * Searches through the given directory for images that can be used for a
-     * composite directory image.
+     * Searches through the given directory for images that can be used for a composite directory image.
      *
      * @param directory Directory
-     * @return A list with files pointing to images of approved file content types.
-     * May return empty list if none found
+     * @return A list with files pointing to images of approved file content types. May return empty list if none found
      */
     List<File> findImagesForCompositeDirectoryImage(File directory) {
         final int nrImages = 4;
         List<File> foundFiles =
-                listFiles(directory, allowedMediaExtensionsFilter, null).stream().filter(f -> !isVideo(f)).collect(Collectors.toList());
+                listFiles(directory, allowedMediaExtensionsFilter, TrueFileFilter.INSTANCE).stream().filter(f -> !isVideo(f))
+                        .collect(Collectors.toList());
         if (foundFiles.size() >= nrImages) {
             return foundFiles;
         }
@@ -374,7 +374,7 @@ public class GalleryService {
      * perform any file operation) given a file and its rescaling parameters. resize
      * parameters.
      *
-     * @param originalFile Progoma; fo;e
+     * @param originalFile Original file
      * @param width Width
      * @param height Height
      * @return A file with the generated filename
