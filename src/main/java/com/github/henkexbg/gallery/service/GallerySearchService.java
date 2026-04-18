@@ -24,6 +24,7 @@ import java.sql.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -177,6 +178,31 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
             LOG.error("Error when performing database search", e);
             throw new IOException(e);
         }
+    }
+
+    private record SqlAndBindings(String sql, Map<String, Object> bindings) {
+
+    }
+
+    SqlAndBindings buildGalleryFileSqlConditionForFilters(List<Filter> filters) {
+//        AtomicInteger varCounter = new AtomicInteger(0);
+//        StringBuilder sql = new StringBuilder();
+        List<String> andClauses = new ArrayList<>();
+        Map<String, Object> bindings =  new HashMap<>();
+        for (int i = 0; i< filters.size(); i++) {
+            Filter filter : filters.get(i);
+            String bindVar = generateBindVar(varCounter);
+            String sqlOp = filter.operator() != null ? filter.operator().name() : Operator.EQ.getSqlOp();
+            if (filter.attr().equals("date")) {
+
+                sql.append(" f.date_taken %s :%s ".formatted(sqlOp, bindVar));
+                bindings.put(bindVar, filter.value());
+            }
+        }
+    }
+
+    String generateBindVar(AtomicInteger varCounter) {
+        return "bind_var_%s".formatted(varCounter.getAndIncrement());
     }
 
     /**
@@ -794,8 +820,27 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
         return allDirectories;
     }
 
-    public record SearchQuery(String publicPath, String searchTerm, Integer page, Integer pageSize, SortOrder sortOrder) {
+    public record SearchQuery(String publicPath, String searchTerm, Integer page, Integer pageSize, SortOrder sortOrder, List<Filter> filters) {
     }
+
+    public enum Operator  {
+        EQ("="),
+        LIKE("LIKE"),
+        GT(">"),
+        LT("<");
+
+        private final String sqlOp;
+
+        Operator(String sqlOp) {
+            this.sqlOp = sqlOp;
+        }
+
+        public String getSqlOp() {
+            return sqlOp;
+        }
+    }
+
+    public record Filter(String attr, Object value, Operator operator) {}
 
     public enum SortOrder {
         ASC, DESC
