@@ -48,7 +48,7 @@ gallery.users.propertiesFile=${gallery.baseDir}/config/gallery-users.properties
 gallery.groupDirAuth.propertiesFile=${gallery.baseDir}/config/gallery-auth-dirs.properties
 
 # Writes all videos that could not successfully be converted. Once on the list, no further attempt will be made to
-convert that video.
+# convert that video.
 gallery.videoConversion.blacklistedVideosFile=${gallery.baseDir}/config/gallery-black-listed-videos.txt
 
 # Defines a directory which will contain publicly accessible static files. Essential when deployed with a front end
