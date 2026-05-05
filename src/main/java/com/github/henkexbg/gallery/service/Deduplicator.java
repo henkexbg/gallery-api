@@ -40,6 +40,7 @@ public class Deduplicator {
                                 stablePaths.size(), trackingMap.size());
                         listeners.forEach(listener -> {
                             try {
+                                LOG.debug("Notifying listener {} of stable paths {}", listener, stablePaths);
                                 listener.onPathsChanged(stablePaths);
                             } catch (Exception e) {
                                 LOG.error("Exception when notifying listener {}. Will proceed with other listeners", listener, e);

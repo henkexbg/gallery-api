@@ -89,8 +89,8 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
             while (running) {
                 FileAndAction fileAndAction = null;
                 try {
-                    galleryAuthorizationService.loginAdminUser();
                     fileAndAction = updatedFilesQueue.take();
+                    galleryAuthorizationService.loginAdminUser();
                     LOG.debug("Update thread received {}. Remaining files in queue: {}", fileAndAction, updatedFilesQueue.size());
                     Collection<File> rootDirectories = galleryAuthorizationService.getAllRootDirectoriesInSystem();
                     File file = fileAndAction.file();
@@ -98,7 +98,7 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
                         if (file.isDirectory()) {
                             upsertOneDirectory(file, rootDirectories);
                         } else {
-                            createOrUpdateOneFile(file);
+                            upsertMediaFile(file);
                         }
                     } else {
                         deleteOneFile(file);
@@ -201,7 +201,7 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
                 List<File> filesInDir = Arrays.stream(Objects.requireNonNull(oneDirectory.listFiles())).filter(File::isFile).toList();
                 List<CompletableFuture<Void>> updatedFileFutures = filesInDir.stream().map(f -> CompletableFuture.runAsync(() -> {
                     try {
-                        createOrUpdateOneFile(f);
+                        upsertMediaFile(f);
                     } catch (Exception e) {
                         LOG.error("Failed in updating {}. Ignoring", f, e);
                     }
@@ -436,6 +436,8 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
             GalleryFile galleryFile = galleryService.createGalleryFile(publicPath, realFile);
             if (dbFile.getDateTaken() != null) {
                 galleryFile.setDateTaken(dbFile.getDateTaken());
+            } else {
+                galleryFile.setDateTaken(Instant.ofEpochMilli(0));
             }
             return galleryFile;
         } catch (NotAllowedException nae) {
@@ -558,7 +560,7 @@ public class GallerySearchService implements FileChangeListener, GalleryRootDirC
      * @param file Filesystem file to add/update in database
      * @throws IOException If there's an issue loading the file
      */
-    void createOrUpdateOneFile(File file) throws IOException {
+    void upsertMediaFile(File file) throws IOException {
         try {
             if (!galleryService.isAllowedMediaFilename(file)) {
                 return;

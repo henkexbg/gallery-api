@@ -17,8 +17,8 @@ package com.github.henkexbg.gallery.service;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.github.henkexbg.gallery.bean.UserInfo;
 import com.github.henkexbg.gallery.service.exception.NotAllowedException;
@@ -44,10 +44,10 @@ public interface GalleryAuthorizationService {
      * Retrieves all root directories across all roles. This is for administrative purposes and required the calling user to have
      * ROLE_ADMIN.
      *
-     * @return A list of files
+     * @return A set of files
      * @throws NotAllowedException If user is not admin
      */
-    List<File> getAllRootDirectoriesInSystem() throws NotAllowedException;
+    Set<File> getAllRootDirectoriesInSystem() throws NotAllowedException;
 
     /**
      * Looks up the actual file based on the public path. This method also checks that the current user has right to access the file in
@@ -77,7 +77,7 @@ public interface GalleryAuthorizationService {
 
     /**
      * The admin user is required for certain management tasks (for instance cronjobs). This user should have all the rights of all the
-     * users. This methods logs that user in. <br> NOTE: It is probably a good idea never to call these methods from a thread that also
+     * users. This method logs that user in. <br> NOTE: It is probably a good idea never to call these methods from a thread that also
      * handles requests! Though it would be implementation dependent, it does sound a bit risky no matter how you twist it. Just saying.
      */
     void loginAdminUser();

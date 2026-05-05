@@ -1,5 +1,6 @@
 package com.github.henkexbg.gallery.util;
 
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.Strings;
 
 import java.io.File;
@@ -71,13 +72,18 @@ public class GalleryFileUtils {
     }
 
     /**
-     * Determines the content type for a given file. Will delegate to JVM/operating system.
+     * Determines the content type for a given file. Will delegate to JVM/operating system after checking hard-coded
+     * rule for .mp (Top Shot) files.
      *
      * @param file File.
      * @return Content type for given file.
      * @throws IOException If content type cannot be established
      */
     public static String getContentType(File file) throws IOException {
+        String extension = FilenameUtils.getExtension(file.getName());
+        if (extension.equalsIgnoreCase("mp")) {
+            return "image/jpeg";
+        }
         return Files.probeContentType(file.toPath());
     }
 }

@@ -131,12 +131,12 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
     }
 
     @Override
-    public List<File> getAllRootDirectoriesInSystem() throws NotAllowedException {
+    public Set<File> getAllRootDirectoriesInSystem() throws NotAllowedException {
         if (!isAdmin()) {
             throw new NotAllowedException("Only admins can access this resource!");
         }
         return rootPathsPerRoleMap.values().stream().map(Map::values).flatMap(Collection::stream)
-                .collect(Collectors.toCollection(ArrayList::new));
+                .collect(Collectors.toCollection(HashSet::new));
     }
 
     @Override
