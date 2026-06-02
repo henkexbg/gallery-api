@@ -57,7 +57,6 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
 
     @Override
     public File getRealFileOrDir(String publicPath) throws NotAllowedException {
-        LOG.debug("Entering getRealFileOrDir(publicPath={})", publicPath);
         if (StringUtils.isBlank(publicPath)) {
             throw new NotAllowedException("Could not extract code from empty path!");
         }
@@ -67,10 +66,7 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
         int relativePathStartIndex = publicPath.indexOf("/");
         String baseDirCode = (relativePathStartIndex < 0) ? publicPath
                 : publicPath.substring(0, relativePathStartIndex);
-        LOG.debug("baseDirCode: {}", baseDirCode);
-
         Collection<String> currentUserRoles = getCurrentUserRoles();
-
         File baseDir = null;
         for (String oneRole : currentUserRoles) {
             Map<String, File> rootPathsOneRoleMap = rootPathsPerRoleMap.get(oneRole);
@@ -89,7 +85,6 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
         File file;
         if (relativePathStartIndex >= 0) {
             String relativePath = publicPath.substring(relativePathStartIndex);
-            LOG.debug("Relative path: {}", relativePath);
             file = new File(baseDir, relativePath);
             if (!isCanonicalChild(baseDir, file)) {
                 throw new NotAllowedException("File " + file + " not allowed!");
@@ -150,26 +145,6 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
         return new UserInfo(authentication.getName(), new ArrayList<>(getCurrentUserRoles()));
     }
 
-    /**
-     * Simpler helper to validate that the child is indeed a canonical child of the parent file.
-     *
-     * @param parent Supposed parent file
-     * @param child  Supposed child file
-     * @return True if child is a proper canonical child of parent
-     */
-    private boolean isCanonicalChild(File parent, File child) {
-        try {
-            return child.getCanonicalPath().startsWith(parent.getCanonicalPath());
-        } catch (IOException ioe) {
-            return false;
-        }
-    }
-
-    private Collection<String> getCurrentUserRoles() {
-        Collection<? extends GrantedAuthority> authorities = SecurityContextHolder.getContext().getAuthentication().getAuthorities();
-        return authorities.stream().map(GrantedAuthority::getAuthority).collect(Collectors.toSet());
-    }
-
     @Override
     public void loginAdminUser() {
         Authentication auth = new Authentication() {
@@ -221,6 +196,26 @@ public class GalleryAuthorizationServiceSSImpl implements GalleryAuthorizationSe
     @Override
     public void logoutAdminUser() {
         SecurityContextHolder.clearContext();
+    }
+
+    /**
+     * Simple helper to validate that the child is indeed a canonical child of the parent file.
+     *
+     * @param parent Supposed parent file
+     * @param child  Supposed child file
+     * @return True if child is a proper canonical child of parent
+     */
+    private boolean isCanonicalChild(File parent, File child) {
+        try {
+            return child.getCanonicalPath().startsWith(parent.getCanonicalPath());
+        } catch (IOException ioe) {
+            return false;
+        }
+    }
+
+    private Collection<String> getCurrentUserRoles() {
+        Collection<? extends GrantedAuthority> authorities = SecurityContextHolder.getContext().getAuthentication().getAuthorities();
+        return authorities.stream().map(GrantedAuthority::getAuthority).collect(Collectors.toSet());
     }
 
 }

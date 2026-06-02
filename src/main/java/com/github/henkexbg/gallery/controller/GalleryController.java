@@ -154,7 +154,7 @@ public class GalleryController {
     public ResponseEntity<InputStreamResource> getImage(WebRequest request, @PathVariable(value = "imageFormat") String imageFormatCode,
                                                         @PathVariable String filePath) throws IOException, NotAllowedException {
         String path = filePath.substring(1);
-        LOG.debug("getImage(imageFormatCode={}, path={})", imageFormatCode, path);
+        LOG.debug("Entering getImage(imageFormatCode={}, path={})", imageFormatCode, path);
         ImageFormat imageFormat = getImageFormatForCode(imageFormatCode);
         if (imageFormat == null) {
             throw new ResourceNotFoundException();
@@ -179,7 +179,7 @@ public class GalleryController {
                                                               @PathVariable(value = "height") String height, @PathVariable String filePath)
             throws IOException, NotAllowedException {
         if (!allowCustomImageSizes) {
-            LOG.debug("Request for custom image was made despite allowCustomImageSizes being false.");
+            LOG.warn("Request for custom image was made despite allowCustomImageSizes being false.");
             throw new ResourceNotFoundException();
         }
         String path = filePath.substring(1);
@@ -189,7 +189,7 @@ public class GalleryController {
             int heightInt = Integer.parseInt(height);
             if (widthInt <= 0 || heightInt <= 0) {
                 String errorMessage = "Can't scale an image to negative dimensions for %s".formatted(path);
-                LOG.debug(errorMessage);
+                LOG.warn(errorMessage);
                 throw new IllegalArgumentException(errorMessage);
             }
             GalleryFile galleryFile = galleryService.getImage(path, widthInt, heightInt);
@@ -212,8 +212,7 @@ public class GalleryController {
      *                     errors.
      */
     @RequestMapping(value = "/video/{conversionFormat}/{*filePath}", method = RequestMethod.GET)
-    public ResponseEntity<InputStreamResource> getVideo(WebRequest request,
-                                                        @PathVariable(value = "conversionFormat") String conversionFormat,
+    public ResponseEntity<InputStreamResource> getVideo(WebRequest request, @PathVariable String conversionFormat,
                                                         @PathVariable String filePath) throws IOException, NotAllowedException {
         String path = filePath.substring(1);
         LOG.debug("getVideo(path={}, conversionFormat={})", path, conversionFormat);
@@ -259,7 +258,6 @@ public class GalleryController {
      * @throws IOException If there is an issue accessing the binary file.
      */
     private ResponseEntity<InputStreamResource> returnResource(WebRequest request, GalleryFile galleryFile) throws IOException {
-        LOG.debug("Entering returnResource()");
         if (request.checkNotModified(galleryFile.getActualFile().lastModified())) {
             return null;
         }
@@ -271,11 +269,8 @@ public class GalleryController {
         long fileTotalSize = file.length();
         long endPosition = ranges[1] != 0 ? ranges[1] : fileTotalSize - 1;
         long contentLength = endPosition - startPosition + 1;
-        LOG.debug("contentLength: {}, file length: {}", contentLength, fileTotalSize);
 
-        LOG.debug("Returning resource {} as inputstream. Start position: {}", file.getCanonicalPath(), startPosition);
         InputStream boundedInputStream = new BoundedInputStream(new FileInputStream(file), endPosition + 1);
-
         InputStream is = new BufferedInputStream(boundedInputStream, 65536);
         InputStreamResource inputStreamResource = new InputStreamResource(is);
         HttpHeaders responseHeaders = new HttpHeaders();
@@ -291,8 +286,8 @@ public class GalleryController {
                     contentRangeResponseHeader);
         }
         HttpStatus status = (startPosition == 0 && contentLength == fileTotalSize) ? HttpStatus.OK : HttpStatus.PARTIAL_CONTENT;
-        LOG.debug("Returning {}. Status: {}, content-type: {}, {}: {}, contentLength: {}", file, status, contentType,
-                HttpHeaders.CONTENT_RANGE, responseHeaders.get(HttpHeaders.CONTENT_RANGE), contentLength);
+        LOG.debug("Returning {}. Status: {}, content-type: {}, {}: {}, contentLength: {}, start/end positions: {}/{}", file, status, contentType,
+                HttpHeaders.CONTENT_RANGE, responseHeaders.get(HttpHeaders.CONTENT_RANGE), contentLength, startPosition, endPosition);
         return new ResponseEntity<>(inputStreamResource, responseHeaders, status);
     }
 
@@ -304,7 +299,6 @@ public class GalleryController {
      * index is not set (which means till the end of the resource), 0 is returned in that field.
      */
     private long[] getRangesFromHeader(String rangeHeader) {
-        LOG.debug("Range header: {}", rangeHeader);
         long[] result = new long[2];
         final String headerPrefix = "bytes=";
         if (Strings.CS.startsWith(rangeHeader, headerPrefix)) {
@@ -318,6 +312,7 @@ public class GalleryController {
                     throw new RangeException();
                 }
             } catch (NumberFormatException nfe) {
+                LOG.warn("Could not parse range header: {}", rangeHeader);
                 throw new RangeException();
             }
         }
